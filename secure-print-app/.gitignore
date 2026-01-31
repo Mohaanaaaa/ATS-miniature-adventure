@@ -1,8 +1,0 @@
-# Ignore everything
-*
-
-# But do not ignore the .gitignore file itself
-!.gitignore
-
-# Include the secure-print-app folder
-C:\Users\Admin\OneDrive\Desktop\img_test\krupacharya\secure-print-app\**
