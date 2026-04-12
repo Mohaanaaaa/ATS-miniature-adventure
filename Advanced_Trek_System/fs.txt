@@ -1,0 +1,44 @@
+Advanced_Trek_System/
+├── backend/                # Flask API & Database
+│   ├── app.py              # Main entry point
+│   ├── models.py           # SQLAlchemy Database structures
+│   ├── requirements.txt    # Python dependencies
+│   └── instance/           # (Auto-generated) SQLite DB file
+├── frontend/               # React Dashboard
+│   ├── src/
+│   │   ├── components/     # Map, Sidebar, Registration Form
+│   │   ├── App.js          # Main Dashboard logic
+│   │   └── api.js          # Axios configuration to talk to Flask
+│   ├── package.json
+│   └── .env                # API URLs & Map Keys
+├── gateway/                # Raspberry Pi / Gateway Script
+│   └── gateway_listener.py # LoRa-to-API Python script
+└── hardware/               # ESP32 Firmware
+    └── band_firmware/
+        └── band_firmware.ino # C++ Code for the Hand Band
+
+
+
+
+How to use this Test Kit:
+Start Backend: Run python app.py in your backend folder.
+
+Start Frontend: Run npm start in your frontend folder.
+
+Register: On the React website, register a trekker with the ID 2026000100001.
+
+Run Test: In a new terminal, run python test_simulation.py.
+
+What to watch for (The "Advanced" Verification):
+Breadcrumbs: Check if the CircleMarkers (the dots) appear exactly where the script sent the coordinates.
+
+The "Alive" Logic: When Step 3 runs (HR=0), look at your React Sidebar. Does the status change to indicate the band is detached?
+
+The SOS Logic: When Step 4 runs, does the map marker and the line turn RED instantly?
+
+Progress Check
+[x] Backend: Unified with Biometric Logic.
+
+[x] Frontend: Unified with SOS/Point History.
+
+[x] Simulation: Test Kit ready to verify the "Alive" logic.

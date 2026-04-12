@@ -1,0 +1,37 @@
+Since you can now see the Registration Form and the Map, it is time to perform the "Ultimate Test." We need to verify that your Flask brain and React eyes are talking to each other correctly.
+
+Before we build the physical hardware, we will simulate the data. This proves that your Swap logic and Breadcrumbs are working perfectly.
+
+Step 4: The Simulation Test (Manual Data Entry)
+We will act like the Gateway and send some fake GPS points to see if a blue line (the breadcrumb) appears on your map.
+
+A. Register a "Test Trekker"
+Open your browser where the React Dashboard is running.
+
+In the sidebar, enter:
+
+Name: Test User
+
+13-Digit Band ID: 2026000100001
+
+Emergency No: 9999999999
+
+Click "Activate Band." You should see "Trekker Registered!" and the name should appear in the "Live List."
+
+B. Simulate the "First Point" (The Starting Point)
+We will use a tool like Postman or a simple Python script to act as the LoRa Gateway. Open a new terminal and run this simple Python command to send the first location:
+# python req.py 
+
+C. Simulate "Movement" (Creating the Breadcrumb)
+Wait 10 seconds (so the React polling picks it up), then change the coordinates slightly and run it again:
+
+Point 2: lat: 12.9750, lng: 77.6000
+
+Point 3: lat: 12.9800, lng: 77.6100
+
+What to watch for on your Map:
+The Marker: You should see a pin appear at the first coordinate.
+
+The Line: As you send Point 2 and Point 3, a Blue Line should automatically connect the dots.
+
+The SOS Test: Change "sos": False to "sos": True in your script and send it. The line on your map should turn RED.

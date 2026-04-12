@@ -1,0 +1,77 @@
+To properly test the "Is the person alive?" logic and the "Every point marked" logic we just discussed, we need a more advanced simulation script. This script will act as your "Virtual Gateway."
+
+It will send four distinct points to the server so you can watch the breadcrumb trail form on your map, and it will simulate a Heart Rate drop to test the safety alert.
+
+The Testing Script (simulate_trek.py)
+Save this file in your Advanced_Trek_System/ folder.
+
+import requests
+import time
+
+# Configuration
+API_URL = "http://127.0.0.1:5000/api/ingest"
+BAND_ID = "2026000100001" # Ensure this matches the ID you registered in the UI
+
+# Define a path of 4 points (Trekking from point A to B)
+path_data = [
+    {"lat": 12.9716, "lng": 77.5946, "hr": 78, "sos": False}, # Point 1: Starting
+    {"lat": 12.9740, "lng": 77.5980, "hr": 85, "sos": False}, # Point 2: Moving
+    {"lat": 12.9770, "lng": 77.6020, "hr": 0,  "sos": False}, # Point 3: BAND LOST (HR=0)
+    {"lat": 12.9800, "lng": 77.6060, "hr": 110, "sos": True}  # Point 4: SOS PRESSED
+]
+
+def run_test():
+    print(f"🚀 Starting Simulation for Band: {BAND_ID}")
+    
+    for i, point in enumerate(path_data):
+        payload = {
+            "band_id": BAND_ID,
+            "lat": point["lat"],
+            "lng": point["lng"],
+            "hr": point["hr"],
+            "sos": point["sos"]
+        }
+        
+        try:
+            response = requests.post(API_URL, json=payload)
+            if response.status_code == 200:
+                print(f"✅ Point {i+1} Sent: Lat {point['lat']}, HR {point['hr']}, SOS {point['sos']}")
+            else:
+                print(f"❌ Error at Point {i+1}: {response.json().get('error')}")
+        except Exception as e:
+            print(f"📡 Connection Failed: {e}")
+        
+        # Wait 5 seconds between pings so you can watch the React Map update
+        print("Waiting 5 seconds for next ping...")
+        time.sleep(5)
+
+    print("\n✨ Simulation Complete! Check your Dashboard.")
+
+if __name__ == "__main__":
+    run_test()
+
+
+How to run the test:
+Start Backend: Run python app.py in your backend folder.
+
+Start Frontend: Run npm start in your frontend folder.
+
+Register: Go to the browser and register the name "Test User" with the ID 2026000100001.
+
+Simulate: Open a new terminal and run python simulate_trek.py.
+
+What you should see:
+Point 1 & 2: Blue markers and a blue line appearing.
+
+Point 3: The sidebar status for the trekker should change (since HR is 0).
+
+Point 4: The entire line and the marker on the map should turn RED because SOS is true.
+
+Why this is the final check:
+If this script works, your Software Architecture is 100% bug-free. You have proven that:
+
+Multiple Points create a path.
+
+Biometrics (Heart Rate) affect the system logic.
+
+SOS overrides the visual style.

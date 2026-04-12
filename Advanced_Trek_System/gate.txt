@@ -1,0 +1,31 @@
+That is a very sharp observation. In a real-world base camp, if two people are standing right next to each other at the entry gate, their GPS coordinates will be identical.
+
+If we don't handle this correctly, the markers on the map will stack perfectly on top of each other, making it look like there is only one person.
+
+1. The "Marker Overlap" Problem
+If User A and User B both send [12.97, 77.59], the map draws them at the exact same pixel. You won't see two pins; you'll only see the one that was drawn last.
+
+How we solve this for "Clarity":
+
+Spiderfication (Manual): When you click a marker that has "hidden" markers beneath it, they "spiral out" so you can see all of them.
+
+Small Jitter (Automatic): We can add a tiny, invisible "random offset" to the coordinates in the React code just for the Marker, while keeping the Polyline (the path) mathematically accurate.
+
+2. The Logic Fix (React Side)
+We can add a tiny bit of "noise" to the marker position so they sit side-by-side instead of on top of each other.
+
+3. Will they "Override" in the Database?
+No. Because our database uses trip_id, the data is perfectly separated in the backend.
+
+Telemetry Row 1: Trip 101, Lat: 12.97, Lng: 77.59
+
+Telemetry Row 2: Trip 102, Lat: 12.97, Lng: 77.59
+Even if the numbers are the same, the database knows they belong to different people. The "override" you saw in your screenshot was purely a visual issue in React, which we fixed with the LayerGroup and key={t.id} logic.
+
+Step 5: The Gateway Listener (The Final Bridge)
+Now that our software handles overlapping trekkers and biometrics, we need the hardware bridge. This script runs on the computer where your LoRa receiver is plugged in.
+
+The "Serial Listener" Logic
+The LoRa module acts like a Serial (COM) Port. It shouts strings into your USB port like: ST:2026000100001:12.97:77.59:82:0.
+
+Create gateway_listener.py in your gateway/ folder:
