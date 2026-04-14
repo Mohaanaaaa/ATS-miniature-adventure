@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, CircleMarker, Popup, LayerGroup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Polyline, CircleMarker, Popup,Tooltip } from 'react-leaflet';
 import { getActiveTrekkers, startTrek } from './api';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -110,51 +110,68 @@ function App() {
       </div>
 
       {/* --- LIVE MAP --- */}
-      {/* --- LIVE MAP SECTION --- */}
       <div style={{ flex: 1 }}>
         <MapContainer center={[12.9716, 77.5946]} zoom={13} style={{ height: "100%", width: "100%" }}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           
           {trekkers.map((t) => {
-            // ONLY render if there is actually history for this specific person
-            if (!t.history || t.history.length === 0) return null;
+            // 1. SAFETY CHECK: If no history or current_pos exists yet, do not render anything for this person
+            if (!t.history || t.history.length === 0 || !t.current_pos) {
+              return null; 
+            }
 
-            const lastPos = t.history[t.history.length - 1];
-            // Add this tiny function inside your App.js
-            const jitter = (coord) => coord + (Math.random() - 0.5) * 0.0001;
+            // 2. DATA VALIDATION: Ensure the coordinates are valid numbers
+            const [lat, lng] = t.current_pos;
+            if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
+              return null;
+            }
 
             return (
-              <LayerGroup key={t.id}> {/* LayerGroup keeps this trekker's items together */}
-                
-                {/* 1. The Line for THIS person only */}
-                <Polyline 
-                  positions={t.history} 
-                  pathOptions={{ color: t.is_sos ? 'red' : 'blue', weight: 4 }} 
-                />
-
-                {/* 2. The Dots for THIS person's history */}
-                {t.history.map((point, idx) => (
-                  <CircleMarker 
-                    key={`${t.id}-point-${idx}`} 
-                    center={point} 
-                    radius={3} 
-                    pathOptions={{ color: t.is_sos ? 'red' : 'blue' }} 
-                  />
-                ))}
-
-                {/* 3. The Main Pin for THIS person's current location */}
-                <Marker 
-                    position={[jitter(lastPos[0]), jitter(lastPos[1])]} 
-                    icon={t.is_sos ? redIcon : blueIcon}
-                  >
+              <React.Fragment key={t.id}>
+                {/* Main Marker */}
+                <Marker position={[lat, lng]} icon={t.is_sos ? redIcon : blueIcon}>
                   <Popup>
-                    <strong>{t.name}</strong> <br/>
-                    Status: {t.is_sos ? "⚠️ SOS" : "Healthy"} <br/>
+                    <strong>{t.name}</strong><br/>
+                    ID: {t.band_id}<br/>
                     Heart Rate: {t.hr} BPM
                   </Popup>
                 </Marker>
 
-              </LayerGroup>
+                {/* Path Line - Only draw if there's more than one point */}
+                {t.history.length > 1 && (
+                  <Polyline 
+                    positions={t.history.map(h => h.pos)} 
+                    pathOptions={{ color: t.is_sos ? 'red' : 'blue', weight: 4 }} 
+                  />
+                )}
+
+                {/* Historical Checkpoints */}
+                {/* 3. Historical Checkpoints (The Dots) */}
+                {t.history.map((pointObj, idx) => (
+                  <CircleMarker 
+                    key={`${t.id}-point-${idx}`}
+                    center={pointObj.pos}
+                    radius={5}
+                    pathOptions={{ 
+                      fillColor: pointObj.is_sos ? 'red' : '#007bff', 
+                      color: 'white', 
+                      weight: 1, 
+                      fillOpacity: 0.8 
+                    }}
+                  >
+                    {/* Use Tooltip for "Mouse Over" details */}
+                    <Tooltip sticky direction="top" opacity={1}>
+                      <div style={{ padding: '5px', fontSize: '12px' }}>
+                        <strong style={{ color: '#007bff' }}>Checkpoint {idx + 1}</strong><br/>
+                        🕒 <b>Time:</b> {pointObj.time}<br/>
+                        💓 <b>Pulse:</b> {pointObj.hr} BPM<br/>
+                        📍 <b>Lat:</b> {pointObj.pos[0].toFixed(5)}<br/>
+                        📍 <b>Lng:</b> {pointObj.pos[1].toFixed(5)}
+                      </div>
+                    </Tooltip>
+                  </CircleMarker>
+                ))}
+              </React.Fragment>
             );
           })}
         </MapContainer>

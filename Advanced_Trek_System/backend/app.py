@@ -86,31 +86,35 @@ def ingest_data():
 def get_active_trekkers():
     active_trips = Trip.query.filter_by(is_active=True).all()
     results = []
+    
     for trip in active_trips:
         trekker = Trekker.query.get(trip.trekker_id)
-        history = [[loc.lat, loc.lng] for loc in trip.locations]
         
-        # Determine current status from the latest ping
+        # 1. Build a detailed history for the interactive dots
+        detailed_history = []
+        for loc in trip.locations:
+            detailed_history.append({
+                "pos": [loc.lat, loc.lng],
+                "time": loc.timestamp.strftime("%I:%M %p"), # Example: 04:15 PM
+                "hr": loc.heart_rate,
+                "is_sos": loc.is_sos
+            })
+        
+        # 2. Get the very latest status
         last_ping = trip.locations[-1] if trip.locations else None
         
-        is_sos = False
-        is_alive = True # Default
-        
-        if last_ping:
-            is_sos = last_ping.is_sos
-            if last_ping.heart_rate == 0:
-                is_alive = False # Flag for "Band Lost/Detached"
-
+        # 3. Compile the response
         results.append({
             "id": trip.id,
             "name": trekker.name,
             "band_id": trip.band_id,
-            "history": history,
-            "current_pos": history[-1] if history else None,
+            "history": detailed_history,
+            "current_pos": detailed_history[-1]["pos"] if detailed_history else None,
             "hr": last_ping.heart_rate if last_ping else 0,
-            "is_sos": is_sos,
-            "is_alive": is_alive 
+            "is_sos": last_ping.is_sos if last_ping else False,
+            "is_alive": (last_ping.heart_rate > 0) if last_ping else True
         })
+        
     return jsonify(results)
 
 # 4. End Trek (The "Swap" release)

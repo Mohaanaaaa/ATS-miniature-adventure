@@ -7,10 +7,10 @@ BAND_ID = "2026000100002" # Ensure this matches the ID you registered in the UI
 
 # Define a path of 4 points (Trekking from point A to B)
 path_data = [
-    {"lat": 12.9716, "lng": 77.5946, "hr": 78, "sos": False}, # Point 1: Starting
-    {"lat": 12.9740, "lng": 77.5980, "hr": 85, "sos": False}, # Point 2: Moving
-    {"lat": 12.9770, "lng": 77.6020, "hr": 10,  "sos": False}, # Point 3: BAND LOST (HR=0)
-    {"lat": 12.9800, "lng": 77.6060, "hr": 110, "sos": True}  # Point 4: SOS PRESSED
+    {"lat": 12.6719, "lng": 77.5356, "hr": 78, "sos": False}, # Point 1: Starting
+    {"lat": 12.6750, "lng": 77.5436, "hr": 85, "sos": False}, # Point 2: Moving
+    {"lat": 12.6870, "lng": 77.5500, "hr": 10,  "sos": False}, # Point 3: BAND LOST (HR=0)
+    {"lat": 12.6900, "lng": 77.5560, "hr": 110, "sos": True}  # Point 4: SOS PRESSED
 ]
 
 def run_test():

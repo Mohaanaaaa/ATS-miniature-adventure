@@ -2,10 +2,10 @@ import requests
 
 # Data to send
 data = {
-    "band_id": "2026000100001",
-    "lat": 12.9716,
-    "lng": 77.5946,
-    "hr": 75,
+    "band_id": "2026000100003",
+    "lat": 12.7310,
+    "lng": 77.6320,
+    "hr": 70,
     "sos": False
 }
 

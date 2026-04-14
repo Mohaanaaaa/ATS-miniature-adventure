@@ -1,0 +1,49 @@
+======================================================================
+         ADVANCED TREKKER TRACKING SYSTEM - PROJECT SPECS
+======================================================================
+Project Goal: Long-range GPS & Biometric monitoring with LoRa.
+Logic: Relational database with reusable "Band Swap" architecture.
+Date: April 2026
+----------------------------------------------------------------------
+
+1. HARDWARE SHOPPING LIST (PER TREKKER BAND)
+-------------------------------------------
+[ ] ESP32 DevKit V1 (30P)        - Master Controller
+[ ] Neo-6M GPS Module            - Location Tracking
+[ ] RYLR998 LoRa Module          - Long-range Communication
+[ ] Pulse Sensor (Analog)        - Heart Rate/Alive Status
+[ ] Push Button (Momentary)      - SOS Trigger
+[ ] TP4056 Charging Module       - Battery Management
+[ ] 18650 Li-ion Battery         - Portable Power
+[ ] Breadboard/Perfboard         - Assembly
+[ ] Hookup Wires (M-M / M-F)     - Connectivity
+
+2. HARDWARE SHOPPING LIST (GATEWAY BASE)
+----------------------------------------
+[ ] RYLR998 LoRa Module          - Receiver
+[ ] CP2102 USB to TTL Adapter    - Interface to Laptop
+
+3. ESTIMATED COST (USD)
+-----------------------
+* Cost per Hand Band:  ~$30.00
+* Cost per Gateway:    ~$15.00
+* Total Starter Kit:   ~$45.00
+
+4. SYSTEM ARCHITECTURE
+----------------------
+- DATA PACKET: "ST:BAND_ID:LAT:LNG:HR:SOS"
+- BACKEND:     Flask API with SQLite (Relational Mapping)
+- FRONTEND:    React Dashboard with Leaflet.js
+- FEATURES:    Real-time Breadcrumbs, SOS Visual Alerts, 
+               Hover-Tooltips for Time/Pulse History.
+
+5. WIRING PINOUT (ESP32)
+------------------------
+- GPS:  RX -> GPIO 17 (TX), TX -> GPIO 16 (RX)
+- LoRa: RX -> GPIO 19 (TX), TX -> GPIO 18 (RX)
+- SOS:  GPIO 4 (Pull-up)
+- HR:   GPIO 34 (Analog)
+
+======================================================================
+                  "SAFE TREKKING THROUGH SMART IOT"
+======================================================================
