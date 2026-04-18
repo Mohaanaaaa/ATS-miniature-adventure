@@ -1,0 +1,48 @@
+It’s exciting to move into the physical assembly phase! 
+Having a visual map of how the data flows from the trekker’s wrist to your computer screen is essential for troubleshooting and ensuring the "Advanced" features we built work as intended.
+----------------------------------------------------------------------------
+Here is the architectural breakdown of the system you’ve created.
+
+1. The System Architecture Diagram (SAD)
+This shows the high-level relationship between the Hardware, the Gateway, and the Software stack.
+
+Trekker Band (Edge Device): Collects GPS and biometrics via the ESP32.
+
+LoRa Link (Transmission): Uses the RYLR998 to send text packets over long distances (up to 15km).
+
+Gateway (Bridge): Receives the radio signal and converts it to a USB/Serial stream for your PC.
+
+Backend (Flask/SQLite): Processes the incoming data, validates the pulse (Is the person alive?), and stores history.
+
+Frontend (React/Leaflet): Displays the interactive map with path breadcrumbs and safety alerts.
+-------------------------------------------------------------------------------------------------
+2. The Data Flow Diagram
+
+This tracks exactly how a single data packet travels through the system.
+
+Generation: The ESP32 strings together the ID, Lat, Lng, HR, and SOS status into a single message: ST:2026000100001:12.97:77.59:82:0.
+
+Transmission: The message is broadcasted via the LoRa module.
+
+Ingestion: The Python Gateway script listens to the Serial Port, reads the string, and sends an HTTP POST request to the Flask server.
+
+Processing: Flask checks if the band_id is "Active" in the database. If it is, it saves the point with a timestamp.
+
+Visualization: The React dashboard performs a GET request every few seconds. It receives the new point, detects the HR status, and updates the map marker and the line color.
+----------------------------------------------------------------------------------------------------
+3. Component Wiring Design
+When you get the parts, this is how they connect to the ESP32:
+Sensor,ESP32 Pin,Logic
+GPS Neo-6M,GPIO 16 (RX) / 17 (TX),Uses UART for coordinate data.
+RYLR998 LoRa,GPIO 18 (RX) / 19 (TX),Uses UART for radio transmission.
+Pulse Sensor,GPIO 34 (Analog),Converts heartbeats to numerical data.
+SOS Button,GPIO 4,Digital pull-up (Low = Active).
+---------------------------------------------------------
+4. Next Steps for Assembly
+Once your components arrive:
+
+Breadboard First: Don't solder anything yet. Connect them on a breadboard to test the code.
+
+Serial Debugging: Use the Arduino Serial Monitor to ensure the GPS has a "Lock" (it might take 5 minutes the first time).
+
+Radio Check: Use your gateway_listener.py to see if the "ST:" packets are actually reaching your computer.

@@ -1,0 +1,52 @@
+A. Data Congestion (Database Locking)
+When 4 people send data every 5 seconds, that is 48 writes to the database every minute.
+The Issue: If the database (SQLite) is busy writing Arjun's data, it might "lock" and cause Deepa's data to fail with a 500 Error.
+The Fix: We should use a Connection Pool or move to a more robust database like PostgreSQL (which you have used before) as you scale.
+
+B. The "SOS Storm"
+If a group of trekkers enters a "Forbidden Zone" together, your dashboard will suddenly have 4 loud alarms going off at once.
+The Issue: The Admin can get overwhelmed and panic.
+The Fix: We should implement "Smart Grouping" in the React Frontend. If multiple people in the same location trigger an SOS, the dashboard should say: "Group Alert: 4 Trekkers Off-Trail near Bhattara Mane."
+
+C. Network Latency
+The Python script sends data instantly, but in the real Western Ghats, the LoRa Gateway might have a 2-3 second delay processing the packets.
+The Issue: Your Frontend might look "stuck" or jittery.
+The Fix: We use "Predictive Movement" (Linear Interpolation). If the map hasn't received a ping in 5 seconds, the React marker smoothly moves a few meters in the direction the trekker was last heading.
+
+Summary of Simulation Check:
+Register: Run the script; you should see 4 new names appear in your sidebar.
+Move: The markers should move from Kukke toward the mountain points.
+Validate: Check if they stay "Green" while inside the circles and turn "Red" if they drift too far.
+
+2. Verifying Frontend Features
+The code we implemented in App.js already includes the logic for Live Path and 15-Min Logs. Here is how to use them:
+
+Live Path (Default): This renders the Polyline. It connects every single coordinate stored in the database for that trekker, showing exactly where they walked.
+
+15-Min Logs: When you click this button in the sidebar, the historyPoints filter activates. Instead of showing a solid line, it displays CircleMarker dots at specific intervals.
+
+Note: In the simulation, since we send data fast, I set it to idx % 30. In the real world, if you ping every 30 seconds, idx % 30 would represent exactly one 15-minute log entry.
+
+3. Real-Time Potential Issues: The "Log Bloat"
+As you move from 4 checkpoints to 25 (and eventually thousands for a real trek), we face Memory Issues.
+
+A. Browser Slowdown
+If you have 10 trekkers and each has 1,000 points, React has to draw 10,000 items on the map.
+
+The Issue: The map will start to "lag" when you try to zoom or drag.
+
+The Fix: We should implement Path Simplification (using the Douglas-Peucker algorithm). This removes unnecessary points that are in a straight line, keeping only the "turns."
+
+B. Database Performance
+Fetching the entire history of every trekker every 5 seconds is "heavy."
+
+The Issue: The Flask server will take longer and longer to respond as the day goes on.
+
+The Fix: The /api/active_trekkers route should only send the Current Position by default. We should create a separate route, /api/history/<band_id>, that only loads the full path when you specifically click on a trekker's name.
+
+C. Data Gaps
+If a trekker’s band fails to send data for 30 minutes, the Live Path will show a straight line crossing through a mountain (which is impossible).
+
+The Issue: It looks like the trekker "teleported" or flew.
+
+The Fix: We should draw the line as Dashed if the time gap between two points is greater than 10 minutes, indicating "Lost Connection" during that segment.

@@ -21,14 +21,6 @@ const redIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-// 1. Define a Grey Icon (Add this near blueIcon/redIcon)
-const greyIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-grey.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
-
 // --- KUMARA HILLS COORDINATES ---
 //const KUMARA_TRAIL = [
  // { name: "Kukke Entrance", lat: 12.6654, lng: 75.6601, radius: 0.5 },
@@ -114,7 +106,7 @@ function App() {
         <h4>Active Trekkers</h4>
         {trekkers.length === 0 && <p style={{ color: '#888', fontStyle: 'italic' }}>No trekkers currently on trail.</p>}
           {trekkers.map(t => (
-            <div key={t.id} style={{
+          <div key={t.id} style={{
               padding: '15px', 
               marginBottom: '12px',
               borderRadius: '8px',
@@ -122,27 +114,21 @@ function App() {
               borderLeft: t.is_sos ? '6px solid #dc3545' : '6px solid #28a745',
               boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
               border: '1px solid #eee'
-            }}>
+          }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <strong><h2>{t.name}</h2></strong>
-              <span style={{ fontSize: '16px', color: '#131111' }}>{t.band_id}</span>
+              <strong>{t.name}</strong>
+              <span style={{ fontSize: '11px', color: '#999' }}>{t.band_id}</span>
             </div>
-            <p style={{ margin: '10px 0 0 0', fontSize: '14px', color: t.is_sos ? '#dc3545' : '#28a745', fontWeight: 'bold' }}>
-              <small>{t.is_sos ? "🚨 EMERGENCY" : `Pulse: ${t.hr} BPM`}</small>
-            </p>    
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>🔋 {t.battery}%</span>
-              <span style={{ color: t.battery < 20 ? 'red' : 'green' }}>
-                {t.battery < 20 ? 'LOW POWER' : 'OK'}
-              </span>
-            </div>      
+            <p style={{ margin: '8px 0 0 0', fontSize: '14px', color: t.is_sos ? '#dc3545' : '#28a745', fontWeight: 'bold' }}>
+              {t.is_sos ? "🚨 SOS EMERGENCY" : `● Healthy - ${t.hr} BPM`}
+            </p>
           </div>
         ))}
       </div>
 
       {/* --- LIVE MAP --- */}
       <div style={{ flex: 1 }}>
-        <MapContainer center={mapCenter} zoom={10} style={{ height: "100%", width: "100%" }}>
+        <MapContainer center={mapCenter} zoom={13} style={{ height: "100%", width: "100%" }}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
           {/* Draw the Safe Chain Circles */}
@@ -166,13 +152,9 @@ function App() {
 
           {/* TREKKER RENDERING */}
           {trekkers.map((t) => {
-            const isLost = t.is_lost; // From the new backend flag
             //if (!t.history || t.history.length === 0 || !t.current_pos) return null;
             //const [lat, lng] = t.current_pos;
             //if (isNaN(lat) || isNaN(lng)) return null;
-            let markerIcon = blueIcon;
-            if (t.is_sos) markerIcon = redIcon;
-            if (isLost) markerIcon = greyIcon; // You can define a grey icon similarly to red/blue
             if (!t.current_pos) return null;
             const historyPoints = viewMode === 'checkpoints' 
               ? t.history.filter((_, idx) => idx % 30 === 0) 
@@ -198,24 +180,17 @@ function App() {
                       <div style={{ fontSize: '12px', padding: '5px' }}>
                         <b style={{ color: '#007bff' }}>{t.name}</b><br/>
                         🕒 Time: {pointObj.time}<br/>
-                        💓 Heart: {pointObj.hr} BPM<br/>
-                        📍 <b>Lat:</b> {pointObj.pos[0].toFixed(5)}<br/>
-                        📍 <b>Lng:</b> {pointObj.pos[1].toFixed(5)}<br/>
+                        💓 Heart: {pointObj.hr} BPM
                       </div>
                     </Tooltip>
                   </CircleMarker>
                 ))}
 
                 {/* 3. Current Live Marker */}
-                <Marker position={t.current_pos} icon={markerIcon}>
+                <Marker position={t.current_pos} icon={t.is_sos ? redIcon : blueIcon}>
                   <Popup>
                     <div style={{ textAlign: 'center', minWidth: '150px' }}>
-                      <strong style={{ fontSize: '10px' }}>{t.name}</strong><br/>
-                      {isLost ? (
-                        <span style={{color: 'grey'}}>⚠️ SIGNAL LOST ({t.last_seen_mins}m ago)</span>
-                      ) : (
-                        <b style={{color: 'green'}}>LIVE</b>
-                      )}
+                      <strong style={{ fontSize: '16px' }}>{t.name}</strong><br/>
                       <div style={{ 
                         margin: '10px 0', 
                         padding: '5px', 
