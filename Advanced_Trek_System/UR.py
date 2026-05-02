@@ -6,11 +6,14 @@ import random
 BASE_URL = "http://127.0.0.1:5000/api"
 
 # 4 Trekkers with unique Band IDs
-TREKKERS = [
+'''TREKKERS = [
     {"name": "A", "band_id": "2026000100001", "contact": "9123456780"},
     {"name": "B", "band_id": "2026000100002", "contact": "9123456781"},
     {"name": "C", "band_id": "2026000100003", "contact": "9123456782"},
     {"name": "D", "band_id": "2026000100004", "contact": "9123456783"}
+]'''
+TREKKERS = [
+    {"name": "saju", "band_id": "2026000100001", "contact": "9123456780"},
 ]
 
 # Generated 25 coordinates from Base to Peak

@@ -335,35 +335,54 @@ def get_active_trekkers():
     active_trips = Trip.query.filter_by(is_active=True).all()
     results = []
     
-    now = datetime.utcnow()
+    # Use timezone-aware UTC to match our ingest logic
+    now = datetime.now(timezone.utc)
     
     for trip in active_trips:
         trekker = Trekker.query.get(trip.trekker_id)
         
-        # 1. Build a detailed history for the interactive dots
         detailed_history = []
         for loc in trip.locations:
             detailed_history.append({
                 "pos": [loc.lat, loc.lng],
-                "time": loc.timestamp.strftime("%I:%M %p"), # Example: 04:15 PM
+                "time": loc.timestamp.strftime("%I:%M %p"),
                 "hr": loc.heart_rate,
-                "is_sos": loc.is_sos
+                "is_sos": loc.is_sos,
+                "in_zone": getattr(loc, 'in_trail_zone', True) # Handle new column safely
             })
         
-        # 2. Get the very latest status
         last_ping = trip.locations[-1] if trip.locations else None
         
-        # Check for Lost Signal (e.g., more than 10 minutes)
+        # 1. Basic Connection Logic
         is_lost = False
         last_seen_mins = 0
         if last_ping:
-            # timedelta calculation
-            diff = now - last_ping.timestamp
+            # Ensure last_ping.timestamp is compared correctly
+            ping_time = last_ping.timestamp.replace(tzinfo=timezone.utc) if last_ping.timestamp.tzinfo is None else last_ping.timestamp
+            diff = now - ping_time
             last_seen_mins = int(diff.total_seconds() / 60)
-            if last_seen_mins > 10: # 10 minutes threshold
-                is_lost = True
-        
-        
+            is_lost = last_seen_mins > 10 
+
+        # 2. Safety Status Logic (High Priority)
+        # This determines the "Alert Level" for the Admin Dashboard
+        safety_status = "SAFE"
+        hr = last_ping.heart_rate if last_ping else 0
+        batt = getattr(last_ping, 'battery_level', 100) if last_ping else 100
+        in_zone = getattr(last_ping, 'in_trail_zone', True) if last_ping else True
+
+        if last_ping and last_ping.is_sos:
+            safety_status = "EMERGENCY"
+        elif not in_zone:
+            safety_status = "OFF-TRAIL"
+        elif hr > 160: # Threshold for high physical exertion[cite: 7]
+            safety_status = "STRESS"
+        elif hr == 0 and not is_lost:
+            safety_status = "CRITICAL" # Heart rate sensor might have detached or zero reading
+        elif batt < 20:
+            safety_status = "LOW_BATTERY"
+        elif is_lost:
+            safety_status = "LOST_SIGNAL"
+
         # 3. Compile the response
         results.append({
             "id": trip.id,
@@ -371,13 +390,13 @@ def get_active_trekkers():
             "band_id": trip.band_id,
             "history": detailed_history,
             "current_pos": detailed_history[-1]["pos"] if detailed_history else None,
-            "hr": last_ping.heart_rate if last_ping else 0,
+            "hr": hr,
+            "batt": batt,
             "is_sos": last_ping.is_sos if last_ping else False,
-            "is_alive": (last_ping.heart_rate > 0) if last_ping else True,
             "is_lost": is_lost,
-            #"last_seen_mins": int((now - last_ping.timestamp).total_seconds() / 60) if last_ping else None
-            "last_seen_mins": last_seen_mins # NEW DATA
-            
+            "last_seen_mins": last_seen_mins,
+            "safety_status": safety_status, # NEW: Drive UI colors with this!
+            "in_zone": in_zone
         })
         
     return jsonify(results)

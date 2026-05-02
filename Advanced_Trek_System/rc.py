@@ -6,7 +6,8 @@ data = {
     "lat": 12.7310,
     "lng": 77.6320,
     "hr": 70,
-    "sos": False
+    "sos": False,        "batt": random.randint(60, 100),
+
 }
 
 # Send POST request
