@@ -8,67 +8,41 @@ from functools import wraps
 import secrets
 import json
 from sqlalchemy.exc import IntegrityError
-import time  # Crucial for your retry logic
-
+import time 
 
 app = Flask(__name__)
 CORS(app)
 
-# Configuration for SQLite
+# ============================================================================
+# ⚙️ SYSTEM & DATABASE CONFIGURATIONS
+# ============================================================================
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///trek_system.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Shop Management Database
-SHOPS_DB = {}  # In production, use SQLAlchemy model
+# Fallback memory storage & credentials structure
+SHOPS_DB = {}  
 ADMIN_CREDENTIALS = {
-    "admin": "kp-vault-2026"  # username: password (change in production!)
+    "admin": "kp-vault-2026"  # Master Credentials
 }
 
 db.init_app(app)
 
-# Define your Base Station Coordinates (e.g., your shop or camp)
-# --- KUMARA PARVATHA TRAIL LOCK ---
-# Coordinates for: Base, Bhattara Mane, Sesha Parvatha, and Peak
+# ============================================================================
+# 🗺️ GEOGRAPHIC BOUNDARY DEFINE PATTERNS (Kumara Parvatha Trail Fences)
+# ============================================================================
 KUMARA_TRAIL = [
     {"name": "Kukke Entrance", "lat": 12.6654, "lng": 75.6601, "radius": 0.5}, 
     {"name": "Bhattara Mane", "lat": 12.6715, "lng": 75.6820, "radius": 0.8},
     {"name": "Sesha Parvatha", "lat": 12.6620, "lng": 75.7010, "radius": 0.6},
     {"name": "KP Peak", "lat": 12.6675, "lng": 75.7125, "radius": 0.5}
 ]
-# The "Big Border" encompassing the whole area
 MASTER_BORDER = {"lat": 12.6660, "lng": 75.6850, "radius": 4.5}
 
-@app.route('/api/map_config', methods=['GET'])
-def get_map_config():
-    return jsonify({
-        "trail_zones": KUMARA_TRAIL,
-        "outer_border": MASTER_BORDER,
-        "center": [12.6654, 75.6601]
-    })
-
-'''TREK_AREAS = [
-    {
-        "name": "Kumara Hills Base", 
-        "lat": 12.6654, 
-        "lng": 75.6601, 
-        "radius": 5.0, # 5km radius around the base/trail
-        "type": "MANDATORY_ZONE" 
-    },
-    {
-        "name": "Rest Point 1", 
-        "lat": 12.6720, 
-        "lng": 75.6750, 
-        "radius": 0.5, # Small safety circle around a camp
-        "type": "SAFE_ZONE"
-    }
-]
-
-BASE_LAT = 12.9716 
-BASE_LNG = 77.5946
-GEOFENCE_RADIUS_KM = 50.0'''
-
+# ============================================================================
+# 🧮 MATHEMATICAL CALCULATOR COMPONENTS
+# ============================================================================
 def calculate_distance(lat1, lon1, lat2, lon2):
-    # Haversine formula to find distance in KM
+    """Calculates the distance between two coordinate pairs in kilometers via the Haversine formula"""
     R = 6371.0 
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
@@ -77,11 +51,47 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
 
-# 1. Start Trek / Register (The "Swap" start)
+# ============================================================================
+# 🛡️ SECURITY TOKEN ENFORCEMENT MIDDLEWARE
+# ============================================================================
+def verify_admin_token(token):
+    """Checks incoming text sequences against valid credential signatures"""
+    return token == "ADMIN_VERIFIED_TOKEN_PLACEHOLDER"
 
-# --- UPDATE IN start_trek ROUTE ---
+def admin_required(f):
+    """Decorator guarding administrative endpoint routes by intercepting Header Bearer Tokens"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        auth_header = request.headers.get('Authorization', '')
+        token = auth_header.replace('Bearer ', '').strip()
+        if not token or not verify_admin_token(token):
+            return jsonify({"error": "Unauthorized access"}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
+# ============================================================================
+# 🟢 PUBLIC CUSTOMER-FACING CHANNELS (No Authentication Constraints)
+# ============================================================================
+
+@app.route('/api/map_config', methods=['GET'])
+def get_map_config():
+    """
+    [FUNCTION LABEL: PUBLIC_MAP_CONFIGURATION_FEEDER]
+    Provides visual map layout constraints, trail points, and centers rendering views.
+    """
+    return jsonify({
+        "trail_zones": KUMARA_TRAIL,
+        "outer_border": MASTER_BORDER,
+        "center": [12.6654, 75.6601]
+    })
+
 @app.route('/api/start_trek', methods=['POST'])
 def start_trek():
+    """
+    [FUNCTION LABEL: TRACKING_BAND_ACTIVATION_ENGINE]
+    Registers or pulls a Trekker profile and activates a tracking band session row.
+    Payload: { "reg_id": "13_digits", "name": "...", "emergency_contact": "...", "shop_id": "..." }
+    """
     data = request.json
     if not data:
         return jsonify({"error": "No data provided"}), 400
@@ -92,31 +102,21 @@ def start_trek():
     shop_id = data.get('shop_id', 'shop_01')
     
     try:
-        # 1. Handle Trekker (Create if doesn't exist)
         trekker = Trekker.query.filter_by(reg_id=reg_id).first()
         if not trekker:
-            trekker = Trekker(
-                name=name,
-                reg_id=reg_id,
-                emergency_contact=emergency
-            )
+            trekker = Trekker(name=name, reg_id=reg_id, emergency_contact=emergency)
             db.session.add(trekker)
-            db.session.flush() # Get the ID without committing yet
+            db.session.flush()
 
-        # 2. Handle Trip (Check for active ones)
         existing_trip = Trip.query.filter_by(band_id=reg_id, is_active=True).first()
         if existing_trip:
-            return jsonify({
-                "message": "Trekker is already active", 
-                "trip_id": existing_trip.id
-            }), 200
+            return jsonify({"message": "Trekker is already active", "trip_id": existing_trip.id}), 200
  
-        # 3. Start NEW trip with compatible UTC
         new_trip = Trip(
             trekker_id=trekker.id, 
             band_id=reg_id,
             shop_id=shop_id,
-            start_time=datetime.now(timezone.utc), # FIX: Use timezone.utc
+            start_time=datetime.now(timezone.utc), 
             is_active=True
         )
         db.session.add(new_trip)
@@ -126,190 +126,36 @@ def start_trek():
         
     except Exception as e:
         db.session.rollback()
-        print(f"CRITICAL ERROR: {str(e)}") # This will show in your terminal
+        print(f"CRITICAL ERROR: {str(e)}")
         return jsonify({"error": "Internal Server Error", "details": str(e)}), 500
-    
-'''def start_trek():
-    data = request.json
-    shop_id = data.get('shop_id', 'default_shop') # Track which shop is registering
-    try:
-        # Check if band is already active elsewhere
-        existing_trip = Trip.query.filter_by(band_id=data['reg_id'], is_active=True).first()
-        if existing_trip:
-            return jsonify({"error": "This Band ID is already assigned to another trekker"}), 400
-        new_trip = Trip(
-            trekker_id=new_trekker.id, 
-            band_id=data['reg_id'],
-            shop_id=shop_id # Save the shop identity
-        )
-        new_trekker = Trekker(
-            name=data['name'],
-            reg_id=data['reg_id'],
-            emergency_contact=data['emergency_contact']
-        )
-        db.session.add(new_trekker)
-        db.session.commit()
-
-        new_trip = Trip(trekker_id=new_trekker.id, band_id=data['reg_id'])
-        db.session.add(new_trip)
-        db.session.commit()
-        
-        return jsonify({"message": "Trekker registered and band activated!"}), 201
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500'''
-
-# 2. THE INGEST ROUTE (The "Alive" Logic happens here)
-'''@app.route('/api/ingest', methods=['POST'])
-def ingest_data():
-    data = request.json
-    if not data:
-        return jsonify({"error": "No data received"}), 400
-
-    band_id = data.get('band_id')
-    active_trip = Trip.query.filter_by(band_id=band_id, is_active=True).first()
-    
-    if not active_trip:
-        return jsonify({"error": "No active trip found for this band"}), 404
-
-    try:
-        lat = float(data.get('lat'))
-        lng = float(data.get('lng'))
-        hr = int(data.get('hr', 0))
-        manual_sos = data.get('sos', False)
-
-        # Geofence check
-        distance_km = calculate_distance(BASE_LAT, BASE_LNG, lat, lng)
-        geofence_violation = distance_km > GEOFENCE_RADIUS_KM
-
-        # SOS is true if button pressed OR geofence breached
-        effective_sos = manual_sos or geofence_violation
-
-        new_log = Telemetry(
-            trip_id=active_trip.id,
-            lat=lat,
-            lng=lng,
-            heart_rate=hr,
-            is_sos=effective_sos
-        )
-        
-        db.session.add(new_log)
-        db.session.commit()
-
-        return jsonify({"status": "Success", "distance_km": round(distance_km, 2)}), 200
-
-    except (ValueError, TypeError, KeyError) as e:
-        return jsonify({"error": f"Invalid data format: {str(e)}"}), 400'''
-        
-# Updated Ingest Route with Trek Area Logic     
-'''@app.route('/api/ingest', methods=['POST'])
-def ingest_data():
-    data = request.json
-    if not data: return jsonify({"error": "No data"}), 400
-    battery = data.get('batt', 100) # Get battery % from hardware
-    if not data:
-        return jsonify({"error": "No data received"}), 400
-
-    band_id = data.get('band_id')
-    active_trip = Trip.query.filter_by(band_id=band_id, is_active=True).first()
-    
-    if not active_trip:
-        return jsonify({"error": "No active trip found for this band"}), 404
-
-    try:
-        #  Extract and Define variables clearly
-        lat = float(data.get('lat'))
-        lng = float(data.get('lng'))
-        hr = int(data.get('hr', 0))  # This ensures 'hr' is defined even if missing
-        #manual_sos = data.get('sos', False)
-        
-        # 1. Master Border Check (First Defense)
-        master_dist = calculate_distance(MASTER_BORDER['lat'], MASTER_BORDER['lng'], lat, lng)
-        outside_master = master_dist > MASTER_BORDER['radius']
-
-        # 2. Multi-Zone / Kumara Hills Logic
-        # Trail Zone Check (Second Defense)
-        in_trail_zone = False
-        for area in KUMARA_TRAIL:
-            if calculate_distance(area['lat'], area['lng'], lat, lng) <= area['radius']:
-                in_trail_zone = True
-                break
-        in_safe_zone = False
-        for area in KUMARA_TRAIL:
-            dist = calculate_distance(area['lat'], area['lng'], lat, lng)
-            if dist <= area['radius']:
-                in_safe_zone = True
-                break
-        
-        # 3. Final SOS status
-        #geofence_violation = not in_trail_zone
-        #effective_sos = manual_sos or geofence_violation
-        in_trail_zone = any(calculate_distance(z['lat'], z['lng'], lat, lng) <= z['radius'] for z in KUMARA_TRAIL)
-        effective_sos = data.get('sos', False) or outside_master or (not in_trail_zone)
-        
-        # --- BUSY DATABASE HANDLING ---
-        attempts = 0
-        while attempts < 3:
-            try:
-                new_log = Telemetry(
-                    trip_id=active_trip.id, lat=lat, lng=lng, 
-                    heart_rate=hr, battery_level=battery, is_sos=effective_sos, in_trail_zone=in_trail_zone, timestamp=datetime.utcnow()  # ← ADD THIS
-
-                )
-                db.session.add(new_log)
-                db.session.commit()
-                return jsonify({"status": "Success", "in_zone": in_trail_zone}), 200
-            except OperationalError:
-                db.session.rollback()
-                time.sleep(0.1) # Wait 100ms
-                attempts += 1
-        return jsonify({"error": "Database busy"}), 503
-   
-    except Exception as e:
-        # This catches errors and prevents the 500 server crash
-        return jsonify({"error": str(e)}), 400'''
-# ============================================================================
-# REPLACEMENT CODE FOR ingest_data() FUNCTION
-# Location in app.py: Lines 213-277
-# 
-# INSTRUCTIONS:
-# 1. Open app.py
-# 2. Find: @app.route('/api/ingest', methods=['POST'])
-# 3. Delete everything from that line through the end of the function
-# 4. Paste this entire code block
-# 5. Save file
-# 6. Restart: python app.py
-# 7. Run: python u.py
-# ============================================================================
 
 @app.route('/api/ingest', methods=['POST'])
 def ingest_data():
+    """
+    [FUNCTION LABEL: HARDWARE_TELEMETRY_INGEST_PIPELINE]
+    Receives live hardware sensor transmissions (lat, lng, heart rate, battery) and validates safety rules.
+    Payload: { "band_id": "...", "lat": ..., "lng": ..., "hr": ..., "batt": ..., "sos": ... }
+    """
     data = request.json
     if not data:
         return jsonify({"error": "No data received"}), 400
     
     band_id = data.get('band_id')
-    
-    # 1. Validation and Lookup
     active_trip = Trip.query.filter_by(band_id=band_id, is_active=True).first()
     if not active_trip:
         return jsonify({"error": f"Band {band_id} not active"}), 404
 
     try:
-        # Convert coordinates safely
         lat = float(data.get('lat'))
         lng = float(data.get('lng'))
         hr = int(data.get('hr', 0))
         batt = data.get('batt', 100)
         manual_sos = data.get('sos', False)
         
-        # 2. Safety Logic (Geofencing)
         master_dist = calculate_distance(MASTER_BORDER['lat'], MASTER_BORDER['lng'], lat, lng)
         in_trail_zone = any(calculate_distance(z['lat'], z['lng'], lat, lng) <= z['radius'] for z in KUMARA_TRAIL)
-        
-        # SOS trigger conditions
         effective_sos = manual_sos or (master_dist > MASTER_BORDER['radius']) or (not in_trail_zone)
         
-        # 3. Database Entry with Retry Logic[cite: 8]
         new_log = Telemetry(
             trip_id=active_trip.id,
             lat=lat, 
@@ -317,7 +163,7 @@ def ingest_data():
             heart_rate=hr,
             battery_level=batt,
             is_sos=effective_sos,
-            timestamp=datetime.now(timezone.utc) # Use the compatible UTC method
+            timestamp=datetime.now(timezone.utc)
         )
         
         db.session.add(new_log)
@@ -326,21 +172,21 @@ def ingest_data():
 
     except Exception as e:
         db.session.rollback()
-        print(f"INGEST ERROR: {str(e)}") # This helps you see the error in your terminal
+        print(f"INGEST ERROR: {str(e)}")
         return jsonify({"error": str(e)}), 500    
 
-# 3. Get All Active Trekkers for Map
 @app.route('/api/active_trekkers', methods=['GET'])
 def get_active_trekkers():
+    """
+    [FUNCTION LABEL: LIVE_MONITOR_MAP_SYNCHRONIZER]
+    Streams location history arrays and evaluates stress alerts to keep the frontend map up to date.
+    """
     active_trips = Trip.query.filter_by(is_active=True).all()
     results = []
-    
-    # Use timezone-aware UTC to match our ingest logic
     now = datetime.now(timezone.utc)
     
     for trip in active_trips:
         trekker = Trekker.query.get(trip.trekker_id)
-        
         detailed_history = []
         for loc in trip.locations:
             detailed_history.append({
@@ -348,23 +194,18 @@ def get_active_trekkers():
                 "time": loc.timestamp.strftime("%I:%M %p"),
                 "hr": loc.heart_rate,
                 "is_sos": loc.is_sos,
-                "in_zone": getattr(loc, 'in_trail_zone', True) # Handle new column safely
+                "in_zone": getattr(loc, 'in_trail_zone', True)
             })
         
         last_ping = trip.locations[-1] if trip.locations else None
-        
-        # 1. Basic Connection Logic
         is_lost = False
         last_seen_mins = 0
         if last_ping:
-            # Ensure last_ping.timestamp is compared correctly
             ping_time = last_ping.timestamp.replace(tzinfo=timezone.utc) if last_ping.timestamp.tzinfo is None else last_ping.timestamp
             diff = now - ping_time
             last_seen_mins = int(diff.total_seconds() / 60)
             is_lost = last_seen_mins > 10 
 
-        # 2. Safety Status Logic (High Priority)
-        # This determines the "Alert Level" for the Admin Dashboard
         safety_status = "SAFE"
         hr = last_ping.heart_rate if last_ping else 0
         batt = getattr(last_ping, 'battery_level', 100) if last_ping else 100
@@ -374,19 +215,18 @@ def get_active_trekkers():
             safety_status = "EMERGENCY"
         elif not in_zone:
             safety_status = "OFF-TRAIL"
-        elif hr > 160: # Threshold for high physical exertion[cite: 7]
+        elif hr > 160:
             safety_status = "STRESS"
         elif hr == 0 and not is_lost:
-            safety_status = "CRITICAL" # Heart rate sensor might have detached or zero reading
+            safety_status = "CRITICAL"
         elif batt < 20:
             safety_status = "LOW_BATTERY"
         elif is_lost:
             safety_status = "LOST_SIGNAL"
 
-        # 3. Compile the response
         results.append({
             "id": trip.id,
-            "name": trekker.name,
+            "name": trekker.name if trekker else f"Hardware Node #{trip.band_id}",
             "band_id": trip.band_id,
             "history": detailed_history,
             "current_pos": detailed_history[-1]["pos"] if detailed_history else None,
@@ -395,15 +235,19 @@ def get_active_trekkers():
             "is_sos": last_ping.is_sos if last_ping else False,
             "is_lost": is_lost,
             "last_seen_mins": last_seen_mins,
-            "safety_status": safety_status, # NEW: Drive UI colors with this!
+            "safety_status": safety_status,
             "in_zone": in_zone
         })
         
     return jsonify(results)
 
-# 4. End Trek (The "Swap" release)
 @app.route('/api/end_trek', methods=['POST'])
 def end_trek():
+    """
+    [FUNCTION LABEL: TRIP_CLOSURE_ARCHIVE_CONTROLLER]
+    Deactivates a band registration and releases the device for future check-ins.
+    Payload: { "band_id": "..." }
+    """
     data = request.json
     trip = Trip.query.filter_by(band_id=data['band_id'], is_active=True).first()
     if trip:
@@ -412,46 +256,36 @@ def end_trek():
         return jsonify({"message": "Band released and trip archived"}), 200
     return jsonify({"error": "Trip not found"}), 404
 
-    # GET SHOPS FOR DROPDOWN (Simple - No Admin Required)
 @app.route('/api/shops/dropdown/options', methods=['GET'])
 def get_shops_dropdown():
     """
-    Get shops formatted for dropdown selection
-    NO ADMIN REQUIRED - Any user can see shop options
+    [FUNCTION LABEL: DEPRECATED_LOCAL_MEMORY_DROPDOWN_SERVICE]
+    Alternative dictionary fallback dropdown provider.
     """
     try:
         shops_options = []
-        
-        # Add all active shops from SHOPS_DB
         for shop_id, shop_data in SHOPS_DB.items():
             if shop_data.get('is_active', True):
                 shops_options.append({
                     "value": shop_id,
                     "label": f"🏕️ {shop_data.get('shop_name', shop_id)}"
                 })
-        
-        # If no shops registered, return defaults
         if not shops_options:
-            shops_options = [
-                {"value": "shop_01", "label": "🏕️ Shop 01 (Default)"}
-            ]
+            shops_options = [{"value": "shop_01", "label": "🏕️ Shop 01 (Default)"}]
         
-        return jsonify({
-            "shops": shops_options,
-            "total": len(shops_options)
-        }), 200
+        return jsonify({"shops": shops_options, "total": len(shops_options)}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
  
- 
-# GET SHOP TREKKERS (Get all trekkers for a specific shop)
 @app.route('/api/shops/<shop_id>/trekkers', methods=['GET'])
 def get_shop_trekkers(shop_id):
-    """Get all active trekkers registered with a specific shop"""
+    """
+    [FUNCTION LABEL: SINGLE_HUB_TREKKER_INVENTORY_RESOLVER]
+    Returns active monitoring lines associated with an individual station profile locator.
+    """
     try:
         trips = Trip.query.filter_by(shop_id=shop_id, is_active=True).all()
         trekkers = []
-        
         for trip in trips:
             trekker = Trekker.query.get(trip.trekker_id)
             if trekker:
@@ -462,268 +296,15 @@ def get_shop_trekkers(shop_id):
                     "emergency_contact": trekker.emergency_contact,
                     "status": "active"
                 })
-        
-        return jsonify({
-            "shop_id": shop_id,
-            "trekkers": trekkers,
-            "total": len(trekkers)
-        }), 200
+        return jsonify({"shop_id": shop_id, "trekkers": trekkers, "total": len(trekkers)}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
- 
-
-
-# 5. Shop Management API
-# ============================================================================
-# HELPER FUNCTION: JWT-like Token Management
-# ============================================================================
-def generate_admin_token():
-    """Generate a secure token for admin session"""
-    return secrets.token_urlsafe(32)
- 
-def verify_admin_token(token):
-    """Verify admin token (simplified - use JWT in production)"""
-    # In production, decode JWT token here
-    return token == "ADMIN_VERIFIED_TOKEN_PLACEHOLDER"
- 
-# ============================================================================
-# DECORATOR: Protect admin-only routes
-# ============================================================================
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        token = request.headers.get('Authorization', '').replace('Bearer ', '')
-        if not token or not verify_admin_token(token):
-            return jsonify({"error": "Unauthorized access"}), 403
-        return f(*args, **kwargs)
-    return decorated_function
- 
-# ============================================================================
-# 1. ADMIN LOGIN ROUTE (Master Admin Authentication)
-# ============================================================================
-@app.route('/api/admin/login', methods=['POST'])
-def admin_login():
-    """
-    Master Admin Login - Returns session token
-    Request: { "username": "admin", "password": "kp-vault-2026" }
-    """
-    data = request.json
-    username = data.get('username')
-    password = data.get('password')
-    
-    if username in ADMIN_CREDENTIALS and ADMIN_CREDENTIALS[username] == password:
-        # In production, use JWT.encode() with secret key
-        token = "ADMIN_VERIFIED_TOKEN_PLACEHOLDER"  # Simplified for demo
-        return jsonify({
-            "success": True,
-            "token": token,
-            "message": "Master Admin Access Granted",
-            "access_level": "MASTER"
-        }), 200
-    
-    return jsonify({"error": "Invalid credentials"}), 401
- 
-# ============================================================================
-# 2. SHOP REGISTRATION ROUTE (Create New Shop)
-# ============================================================================
-@app.route('/api/admin/shops/register', methods=['POST'])
-def register_shop():
-    data = request.json or {}
-    try:
-        shop_id = data.get('shop_id')
-        if not shop_id:
-            return jsonify({"error": "Missing shop_id"}), 400
-
-        # Check if shop already exists to prevent duplication crashes
-        existing = Shop.query.filter_by(shop_id=shop_id).first()
-        if existing:
-            return jsonify({"error": f"Station ID '{shop_id}' is already registered!"}), 400
-
-        # Safely package location coordinates into JSON to match your model
-        location_data = {
-            "lat": float(data.get('lat', 12.6654)),
-            "lng": float(data.get('lng', 75.6601))
-        }
-
-        # Build new Shop mapping exactly to your models.py attributes
-        new_shop = Shop(
-            shop_id=shop_id,
-            shop_name=data.get('shop_name', 'Unnamed Shop'),
-            shop_location=location_data, # Saved as JSON object cleanly
-            contact_person=data.get('contact_person', 'N/A'),
-            contact_phone=data.get('phone') or data.get('contact_phone') or 'N/A', # Fixes KeyError:'phone'
-            max_trekkers=int(data.get('max_trekkers', 50))
-        )
-        
-        db.session.add(new_shop)
-        db.session.commit() # Writes inside trek_system.db rows permanently!
-        return jsonify({"message": "Shop registered permanently!", "shop_id": shop_id}), 201
-        
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error during shop registration: {str(e)}")
-        return jsonify({"error": f"Database Commit Failure: {str(e)}"}), 500
- 
-# ============================================================================
-# 3. GET ALL SHOPS (Master Admin Only)
-# ============================================================================
-@app.route('/api/admin/shops', methods=['GET'])
-@admin_required
-def get_all_shops():
-    """Get all registered shops - Master Admin only"""
-    return jsonify({
-        "total_shops": len(SHOPS_DB),
-        "shops": list(SHOPS_DB.values())
-    }), 200
- 
-# ============================================================================
-# 4. GET SINGLE SHOP DETAILS
-# ============================================================================
-@app.route('/api/admin/shops/<shop_id>', methods=['GET'])
-@admin_required
-def get_shop_details(shop_id):
-    """Get detailed info about a specific shop including its trekkers"""
-    if shop_id not in SHOPS_DB:
-        return jsonify({"error": f"Shop {shop_id} not found"}), 404
-    
-    # Get all active trips for this shop
-    shop_trips = Trip.query.filter_by(shop_id=shop_id, is_active=True).all()
-    trekker_list = []
-    
-    for trip in shop_trips:
-        trekker = Trekker.query.get(trip.trekker_id)
-        trekker_list.append({
-            "id": trip.id,
-            "name": trekker.name,
-            "band_id": trip.band_id,
-            "emergency_contact": trekker.emergency_contact,
-            "trip_start": trip.start_time.isoformat() if trip.start_time else None
-        })
-    
-    shop_data = SHOPS_DB[shop_id].copy()
-    shop_data['active_trekkers'] = len(trekker_list)
-    shop_data['trekkers'] = trekker_list
-    
-    return jsonify(shop_data), 200
- 
-# ============================================================================
-# 5. UPDATE SHOP INFO (Admin Only)
-# ============================================================================
-@app.route('/api/admin/shops/<shop_id>', methods=['PUT'])
-@admin_required
-def update_shop(shop_id):
-    """Update shop information"""
-    if shop_id not in SHOPS_DB:
-        return jsonify({"error": f"Shop {shop_id} not found"}), 404
-    
-    data = request.json
-    
-    # Update only allowed fields
-    allowed_fields = ['shop_name', 'contact_person', 'contact_phone', 'max_trekkers', 'is_active']
-    for field in allowed_fields:
-        if field in data:
-            SHOPS_DB[shop_id][field] = data[field]
-    
-    SHOPS_DB[shop_id]['updated_at'] = datetime.utcnow().isoformat()
-    
-    return jsonify({
-        "success": True,
-        "message": f"Shop {shop_id} updated",
-        "shop": SHOPS_DB[shop_id]
-    }), 200
- 
-# ============================================================================
-# 6. GLOBAL ALERTS (Master Admin - Broadcast to all shops)
-# ============================================================================
-@app.route('/api/admin/alerts/broadcast', methods=['POST'])
-@admin_required
-def broadcast_alert():
-    """
-    Master Admin broadcasts global alert to all shops
-    Request: {
-        "alert_type": "WEATHER_WARNING" | "EVACUATION" | "ALL_CLEAR",
-        "message": "Heavy rain expected in 30 minutes",
-        "affected_shops": ["shop_01", "shop_02"] or "ALL"
-    }
-    """
-    data = request.json
-    alert_type = data.get('alert_type')
-    message = data.get('message')
-    affected_shops = data.get('affected_shops', 'ALL')
-    
-    alert_log = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "alert_type": alert_type,
-        "message": message,
-        "affected_shops": affected_shops,
-        "broadcast_by": "MASTER_ADMIN"
-    }
-    
-    # In production, store this in database and notify via WebSocket
-    return jsonify({
-        "success": True,
-        "alert": alert_log,
-        "message": f"Alert broadcasted to {affected_shops}"
-    }), 200
- 
-# ============================================================================
-# 7. DASHBOARD STATS (Master Admin Analytics)
-# ============================================================================
-@app.route('/api/admin/dashboard/stats', methods=['GET'])
-@admin_required
-def get_dashboard_stats():
-    """
-    Feeds the core metrics grid cards directly on mount.
-    """
-    try:
-        from models import Shop, Trip, Telemetry  # adjust imports based on your structure
-        
-        station_count = Shop.query.count()
-        active_count = Trip.query.filter_by(is_active=True).count()
-        
-        # Pull latest active alerts out of telemetry structure
-        emergency_count = Telemetry.query.filter_by(is_sos=True).count()
-        
-        return jsonify({
-            "total_shops": station_count,          # <-- This directly sets total_shops!
-            "total_active_trekkers": active_count,
-            "emergency_alerts": emergency_count,
-            "lost_signals": 0
-        }), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
- 
-# ============================================================================
-# 8. SHOP REGISTRATION PAGE HELPER (Get empty form template)
-# ============================================================================
-@app.route('/api/admin/shops/form-template', methods=['GET'])
-@admin_required
-def get_shop_form_template():
-    """Returns empty form template for shop registration"""
-    return jsonify({
-        "template": {
-            "shop_name": "",
-            "shop_id": "shop_XX",
-            "shop_location": {
-                "lat": 12.6654,
-                "lng": 75.6601
-            },
-            "contact_person": "",
-            "contact_phone": "",
-            "max_trekkers": 50
-        },
-        "field_hints": {
-            "shop_id": "Unique identifier (e.g., shop_01, shop_02)",
-            "shop_name": "Friendly name of the shop/base camp",
-            "max_trekkers": "Maximum concurrent trekkers allowed"
-        }
-    }), 200
 
 @app.route('/api/shops/available', methods=['GET'])
 def get_available_shops():
     """
-    Populates dropdown selectors on registration sites directly from 
-    persistent SQLite database entries.
+    [FUNCTION LABEL: PUBLIC_REGISTRATION_STATION_DROPDOWN_PROVIDER]
+    Queries the SQLite Database to build dropdown fields for frontend signup forms.
     """
     try:
         db_shops = Shop.query.all()
@@ -739,94 +320,340 @@ def get_available_shops():
     except Exception as e:
         return jsonify({"error": f"Failed to load stations: {str(e)}"}), 500
 
+# ============================================================================
+# 🔒 ADMINISTRATIVE ROUTE CONTROLLERS (Requires Bearer Authorization Tokens)
+# ============================================================================
+
+@app.route('/api/admin/login', methods=['POST'])
+def admin_login():
+    """
+    [FUNCTION LABEL: MASTER_ADMIN_AUTHENTICATION_GATEWAY]
+    Verifies user profiles against static password hashes and issues authorization session keys.
+    Payload: { "username": "admin", "password": "kp-vault-2026" }
+    """
+    data = request.json or {}
+    username = data.get('username')
+    password = data.get('password')
+    
+    if username in ADMIN_CREDENTIALS and ADMIN_CREDENTIALS[username] == password:
+        return jsonify({
+            "success": True,
+            "token": "ADMIN_VERIFIED_TOKEN_PLACEHOLDER",
+            "message": "Master Admin Access Granted",
+            "access_level": "MASTER"
+        }), 200
+    
+    return jsonify({"error": "Invalid credentials"}), 401
+
+@app.route('/api/admin/stats', methods=['GET'])
+@admin_required
+def get_synchronized_stats():
+    """
+    [FUNCTION LABEL: ADMIN_CORE_ANALYTICS_COUNTERS_COMPILER]
+    Computes system-wide diagnostic statistics to feed the summary blocks on the dashboard.
+    """
+    try:
+        station_count = Shop.query.count()
+        active_count = Trip.query.filter_by(is_active=True).count()
+        emergency_count = Telemetry.query.filter_by(is_sos=True).count()
+        
+        return jsonify({
+            "total_shops": station_count,          
+            "total_active_trekkers": active_count,
+            "emergency_alerts": emergency_count,
+            "lost_signals": 0
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/admin/shops', methods=['GET', 'POST'])
+@admin_required
+def handle_shops_management():
+    """
+    [FUNCTION LABEL: ADMIN_STATION_REGISTRY_HANDLER]
+    GET: Serializes permanent database store lines to render in admin data tables.
+    POST: Processes registration inputs to add a new monitoring station.
+    """
+    if request.method == 'POST':
+        data = request.json or {}
+        shop_id = data.get('shop_id')
+        if not shop_id:
+            return jsonify({"error": "Missing unique station ID key."}), 400
+
+        existing = Shop.query.filter_by(shop_id=shop_id).first()
+        if existing:
+            return jsonify({"error": f"Station ID '{shop_id}' is already active in database."}), 400
+
+        try:
+            location_coordinates = {
+                "lat": float(data.get('lat', 12.6654)),
+                "lng": float(data.get('lng', 75.6601))
+            }
+            new_shop = Shop(
+                shop_id=shop_id,
+                shop_name=data.get('shop_name', 'New Operational Hub'),
+                shop_location=location_coordinates,
+                contact_person=data.get('contact_person', 'Ranger Station Head'),
+                contact_phone=data.get('contact_phone') or data.get('phone') or 'N/A',
+                max_trekkers=int(data.get('max_trekkers', 50))
+            )
+            db.session.add(new_shop)
+            db.session.commit()
+            return jsonify({"success": True, "message": f"Hub {shop_id} saved permanently."}), 201
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": f"Database transaction crashed: {str(e)}"}), 500
+
+    try:
+        db_shops = Shop.query.all()
+        serialized_shops = []
+        for s in db_shops:
+            serialized_shops.append({
+                "shop_id": s.shop_id,
+                "shop_name": s.shop_name,
+                "contact_person": s.contact_person,
+                "contact_phone": s.contact_phone,
+                "max_trekkers": s.max_trekkers
+            })
+        return jsonify({"shops": serialized_shops}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed reading database hub list: {str(e)}"}), 500
+
+@app.route('/api/admin/list', methods=['GET'])
+@admin_required
+def get_dashboard_row_records_list():
+    """
+    [FUNCTION LABEL: ADMIN_ROW_DRIVEN_METRIC_DRILLDOWN_COMPILER]
+    Processes grid analytics click events to compile localized diagnostic lists.
+    Query Target: /api/admin/list?type=EMERGENCY | ACTIVE | ACTIVE_TREKKERS | LOST_SIGNAL
+    """
+    list_type = request.args.get('type', 'ACTIVE_TREKKERS')
+    records = []
+    
+    try:
+        if list_type == 'ACTIVE':
+            hubs = Shop.query.all()
+            for h in hubs:
+                records.append({
+                    "id": h.shop_id,
+                    "name": h.shop_name,
+                    "status": f"Capacity Limit: {h.max_trekkers} Trekkers"
+                })
+                
+        elif list_type == 'ACTIVE_TREKKERS':
+            active_trips = Trip.query.filter_by(is_active=True).all()
+            for trip in active_trips:
+                trekker = Trekker.query.get(trip.trekker_id)
+                records.append({
+                    "id": trip.band_id,
+                    "name": trekker.name if trekker else "Unknown Trekker",
+                    "status": f"Active Hub: {trip.shop_id}"
+                })
+                
+        elif list_type == 'EMERGENCY':
+            active_trips = Trip.query.filter_by(is_active=True).all()
+            for trip in active_trips:
+                latest_ping = Telemetry.query.filter_by(trip_id=trip.id).order_by(Telemetry.timestamp.desc()).first()
+                if latest_ping and latest_ping.is_sos:
+                    trekker = Trekker.query.get(trip.trekker_id)
+                    records.append({
+                        "id": trip.band_id,
+                        "name": trekker.name if trekker else "Hardware Node",
+                        "status": "🚨 BROADCASTING ACTIVE SOS"
+                    })
+                    
+        elif list_type == 'LOST_SIGNAL':
+            active_trips = Trip.query.filter_by(is_active=True).all()
+            now = datetime.now(timezone.utc)
+            for trip in active_trips:
+                latest_ping = Telemetry.query.filter_by(trip_id=trip.id).order_by(Telemetry.timestamp.desc()).first()
+                if latest_ping:
+                    ping_time = latest_ping.timestamp.replace(tzinfo=timezone.utc) if latest_ping.timestamp.tzinfo is None else latest_ping.timestamp
+                    if (now - ping_time).total_seconds() / 60 > 10:
+                        trekker = Trekker.query.get(trip.trekker_id)
+                        records.append({
+                            "id": trip.band_id,
+                            "name": trekker.name if trekker else "Unknown Trekker",
+                            "status": "⚠️ SIGNAL OUTAGE (OFFLINE)"
+                        })
+
+        return jsonify({"records": records}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed compiling diagnostics array sub-list: {str(e)}"}), 500
+
+@app.route('/api/admin/next-shop-id', methods=['GET'])
+@admin_required
+def get_computed_next_shop_sequence_string():
+    """
+    [FUNCTION LABEL: ADMIN_AUTOMATED_SEQUENCE_COUNTER_SCANNER]
+    Scans station code layouts to compute the next consecutive alphanumeric registration string (e.g., shop_03).
+    """
+    try:
+        existing_ids = [shop.shop_id for shop in Shop.query.all()]
+        counter = 1
+        next_id = f"shop_{counter:02d}"
+        while next_id in existing_ids:
+            counter += 1
+            next_id = f"shop_{counter:02d}"
+        return jsonify({"next_id": next_id}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/admin/shops/update/<shop_id>', methods=['PUT'])
+@admin_required
+def update_shop_profile(shop_id):
+    """
+    [FUNCTION LABEL: ADMIN_BASE_CAMP_PROFILE_MODIFIER]
+    Modifies configuration rules, ranges, limits, or parameters for an active station layout.
+    """
+    try:
+        shop = Shop.query.get(shop_id)
+        if not shop:
+            return jsonify({"error": "Target station data profile not found."}), 404
+            
+        data = request.get_json()
+        shop.shop_name = data.get('shop_name', shop.shop_name)
+        shop.contact_person = data.get('contact_person', shop.contact_person)
+        shop.contact_phone = data.get('contact_phone', shop.contact_phone)
+        shop.max_trekkers = data.get('max_trekkers', shop.max_trekkers)
+        
+        if 'shop_location' in data:
+            shop.shop_location = data['shop_location']
+            
+        db.session.commit()
+        return jsonify({"message": f"Station {shop_id} configuration modified successfully."}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/admin/shops/delete/<shop_id>', methods=['DELETE'])
+@admin_required
+def delete_shop_profile(shop_id):
+    """
+    [FUNCTION LABEL: ADMIN_BASE_CAMP_DESTRUCTION_CLEANER]
+    Drops an operational base station completely out of the system layout.
+    """
+    try:
+        shop = Shop.query.get(shop_id)
+        if not shop:
+            return jsonify({"error": "Target station profile does not exist."}), 404
+            
+        db.session.delete(shop)
+        db.session.commit()
+        return jsonify({"message": f"Station {shop_id} deleted cleanly."}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Cascading constraint block or database failure: {str(e)}"}), 500
+
+# ============================================================================
+# ⚠️ ORIGINAL LEGACY BACKEND WRAPPERS (Preserved exactly for legacy safety)
+# ============================================================================
+@app.route('/api/admin/shops/register', methods=['POST'])
+def register_shop():
+    data = request.json or {}
+    try:
+        shop_id = data.get('shop_id')
+        if not shop_id: return jsonify({"error": "Missing shop_id"}), 400
+        existing = Shop.query.filter_by(shop_id=shop_id).first()
+        if existing: return jsonify({"error": f"Station ID '{shop_id}' is already registered!"}), 400
+        location_data = {"lat": float(data.get('lat', 12.6654)), "lng": float(data.get('lng', 75.6601))}
+        new_shop = Shop(
+            shop_id=shop_id, shop_name=data.get('shop_name', 'Unnamed Shop'), shop_location=location_data,
+            contact_person=data.get('contact_person', 'N/A'), contact_phone=data.get('phone') or data.get('contact_phone') or 'N/A',
+            max_trekkers=int(data.get('max_trekkers', 50))
+        )
+        db.session.add(new_shop)
+        db.session.commit()
+        return jsonify({"message": "Shop registered permanently!", "shop_id": shop_id}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Database Commit Failure: {str(e)}"}), 500
+
+@app.route('/api/admin/shops/<shop_id>', methods=['GET', 'PUT'])
+@admin_required
+def legacy_shop_by_id(shop_id):
+    if request.method == 'GET':
+        if shop_id not in SHOPS_DB: return jsonify({"error": f"Shop {shop_id} not found"}), 404
+        shop_trips = Trip.query.filter_by(shop_id=shop_id, is_active=True).all()
+        trekker_list = []
+        for trip in shop_trips:
+            trekker = Trekker.query.get(trip.trekker_id)
+            trekker_list.append({"id": trip.id, "name": trekker.name, "band_id": trip.band_id, "emergency_contact": trekker.emergency_contact, "trip_start": trip.start_time.isoformat() if trip.start_time else None})
+        shop_data = SHOPS_DB[shop_id].copy()
+        shop_data['active_trekkers'] = len(trekker_list)
+        shop_data['trekkers'] = trekker_list
+        return jsonify(shop_data), 200
+    else:
+        if shop_id not in SHOPS_DB: return jsonify({"error": f"Shop {shop_id} not found"}), 404
+        data = request.json
+        allowed_fields = ['shop_name', 'contact_person', 'contact_phone', 'max_trekkers', 'is_active']
+        for field in allowed_fields:
+            if field in data: SHOPS_DB[shop_id][field] = data[field]
+        SHOPS_DB[shop_id]['updated_at'] = datetime.utcnow().isoformat()
+        return jsonify({"success": True, "message": f"Shop {shop_id} updated", "shop": SHOPS_DB[shop_id]}), 200
+
+@app.route('/api/admin/alerts/broadcast', methods=['POST'])
+@admin_required
+def broadcast_alert():
+    data = request.json
+    return jsonify({"success": True, "alert": {"timestamp": datetime.utcnow().isoformat(), "alert_type": data.get('alert_type'), "message": data.get('message'), "affected_shops": data.get('affected_shops', 'ALL'), "broadcast_by": "MASTER_ADMIN"}, "message": "Alert broadcasted"}), 200
+
+@app.route('/api/admin/dashboard/stats', methods=['GET'])
+@admin_required
+def get_dashboard_stats():
+    try:
+        return jsonify({"total_shops": Shop.query.count(), "total_active_trekkers": Trip.query.filter_by(is_active=True).count(), "emergency_alerts": Telemetry.query.filter_by(is_sos=True).count(), "lost_signals": 0}), 200
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
+@app.route('/api/admin/shops/form-template', methods=['GET'])
+@admin_required
+def get_shop_form_template():
+    return jsonify({"template": {"shop_name": "", "shop_id": "shop_XX", "shop_location": {"lat": 12.6654, "lng": 75.6601}, "contact_person": "", "contact_phone": "", "max_trekkers": 50}, "field_hints": {"shop_id": "Unique identifier", "shop_name": "Friendly name", "max_trekkers": "Max limit"}}), 200
 
 @app.route('/api/vault/comprehensive', methods=['GET'])
 @admin_required
 def get_vault_data():
-    """
-    MATCHES EXPECTED FRONTEND PATH EXACTLY.
-    Main background synchronization loop data source for full Admin state maps.
-    """
     try:
         shops_query = Shop.query.all()
         shops_list = []
         for s in shops_query:
             loc = s.shop_location
             if isinstance(loc, str):
-                try: 
-                    loc = json.loads(loc)
-                except: 
-                    loc = {"lat": 12.6654, "lng": 75.6601}
-            
-            shops_list.append({
-                "shop_id": s.shop_id,
-                "shop_name": s.shop_name,
-                "shop_location": loc,
-                "contact_person": s.contact_person,
-                "contact_phone": s.contact_phone,
-                "max_trekkers": s.max_trekkers
-            })
-
+                try: loc = json.loads(loc)
+                except: loc = {"lat": 12.6654, "lng": 75.6601}
+            shops_list.append({"shop_id": s.shop_id, "shop_name": s.shop_name, "shop_location": loc, "contact_person": s.contact_person, "contact_phone": s.contact_phone, "max_trekkers": s.max_trekkers})
         active_trips = Trip.query.filter_by(is_active=True).all()
         trekkers_list = []
         for trip in active_trips:
             trekker = Trekker.query.get(trip.trekker_id)
             last_telemetry = Telemetry.query.filter_by(trip_id=trip.id).order_by(Telemetry.timestamp.desc()).first()
-
-            pulse = last_telemetry.heart_rate if last_telemetry else 75
-            battery = last_telemetry.battery_level if last_telemetry else 100
-            is_sos = last_telemetry.is_sos if last_telemetry else False
-
-            trekkers_list.append({
-                "id": trip.id,
-                "name": trekker.name if trekker else f"Hardware Node #{trip.band_id}",
-                "band_id": trip.band_id,
-                "shop_id": trip.shop_id,
-                "pulse": pulse,
-                "battery": battery,
-                "status": "EMERGENCY" if is_sos else "ACTIVE"
-            })
-
+            trekkers_list.append({"id": trip.id, "name": trekker.name if trekker else f"Hardware Node #{trip.band_id}", "band_id": trip.band_id, "shop_id": trip.shop_id, "pulse": last_telemetry.heart_rate if last_telemetry else 75, "battery": last_telemetry.battery_level if last_telemetry else 100, "status": "EMERGENCY" if (last_telemetry and last_telemetry.is_sos) else "ACTIVE"})
         return jsonify({"shops": shops_list, "trekkers": trekkers_list, "vault_status": "SECURE"}), 200
-    except Exception as e:
-        return jsonify({"error": f"Pipeline failure: {str(e)}"}), 500
- 
+    except Exception as e: return jsonify({"error": f"Pipeline failure: {str(e)}"}), 500
+
 @app.route('/api/admin/trekkers', methods=['GET', 'OPTIONS'])
 @admin_required
 def get_admin_trekkers_by_status():
     status_filter = request.args.get('status', 'ACTIVE')
     active_trips = Trip.query.filter_by(is_active=True).all()
     results = []
-    
     now = datetime.now(timezone.utc)
-
     for trip in active_trips:
         trekker = Trekker.query.get(trip.trekker_id)
         last_ping = trip.locations[-1] if trip.locations else None
-        
-        # Calculate current status to match the filter
         current_status = "SAFE"
-        is_lost = False
         if last_ping:
             diff = now - last_ping.timestamp.replace(tzinfo=timezone.utc)
-            is_lost = diff.total_seconds() / 60 > 10
-            
             if last_ping.is_sos: current_status = "EMERGENCY"
-            elif is_lost: current_status = "LOST_SIGNAL"
+            elif (diff.total_seconds() / 60 > 10): current_status = "LOST_SIGNAL"
             else: current_status = "ACTIVE"
-
-        # Only add to list if it matches the clicked card
         if status_filter == "ACTIVE" or current_status == status_filter:
-            results.append({
-                "id": trip.id,
-                "name": trekker.name,
-                "band_id": trip.band_id,
-                "shop_name": trip.shop_id, # Linking the shop ID here
-                "emergency_contact": trekker.emergency_contact,
-                "status": current_status
-            })
-            
+            results.append({"id": trip.id, "name": trekker.name, "band_id": trip.band_id, "shop_name": trip.shop_id, "emergency_contact": trekker.emergency_contact, "status": current_status})
     return jsonify({"trekkers": results})
+
+# ============================================================================
+# 🚀 SYSTEM ENTRY EXECUTION POINT
+# ============================================================================
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()

@@ -1,11 +1,14 @@
 import requests
 import time
 import random
+import json  # <-- Fixed: Added missing import so json.dumps doesn't crash!
 
 BASE_URL = "http://127.0.0.1:5000/api"
 
+# Synced up perfectly with your React registration screenshot entry!
 TREKKERS = [
-{"name": "A", "band_id": "2026000100001", "contact": "9123406780"},]
+    {"name": "A", "band_id": "2026000100001", "contact": "9743141231"}
+]
 
 START_LAT, START_LNG = 12.6654, 75.6601
 END_LAT, END_LNG = 12.6675, 75.7125
@@ -14,6 +17,7 @@ def generate_path(steps=25):
     path = []
     for i in range(steps):
         ratio = i / (steps - 1)
+        # Generate a progressive path heading up the mountain trail
         lat = START_LAT + (END_LAT - START_LAT) * ratio + random.uniform(-0.001, 0.001)
         lng = START_LNG + (END_LNG - START_LNG) * ratio + random.uniform(-0.001, 0.001)
         path.append({"lat": lat, "lng": lng})
@@ -25,58 +29,59 @@ def send_telemetry(trekker, lat, lng, heart_rate):
         "lat": lat,
         "lng": lng,
         "hr": heart_rate,
-        "batt": random.randint(60, 100),
-        "sos": False
+        "battery": random.randint(75, 100),  # Synced naming convention to match React UI
+        "is_sos": False                      # Matches your frontend model parameters
     }
     try:
-        response = requests.post(f"{BASE_URL}/ingest", json=payload)
-        print(f"Request payload: {json.dumps(payload)}")
-        print(f"Response status code: {response.status_code}")
-        response_json = response.json()
-        print(f"Response JSON: {response_json}")
+        # Pushing straight to your active telemetry ingestion layer
+        response = requests.post(f"{BASE_URL}/ingest", json=payload, timeout=3)
+        
+        # Verbose terminal printouts so you can track database state updates live
+        print(f"   [Payload]: {json.dumps(payload)}")
+        
         if response.status_code == 200:
-            status = "✅" if response_json.get('status') == 'Success' else "⚠️"
-            return status, "OK"
+            return "✅", "OK"
         else:
-            return "❌", response_json.get('error', f"HTTP {response.status_code}")
+            try:
+                err_msg = response.json().get('error', f"HTTP {response.status_code}")
+            except:
+                err_msg = f"HTTP {response.status_code}"
+            return "⚠️", err_msg
     except Exception as e:
-        return "❌", f"Error: {str(e)}"
+        return "❌", f"Connection Failed: {str(e)}"
 
 def run_simulation():
     print("="*60)
-    print("🏔️  KUMARA PARVATHA TREK SIMULATION")
+    print("🏔️  KUMARA HILLS SAFETY MONITOR - TRAIL SIMULATION")
     print("="*60)
-    print(f"Simulating {len(TREKKERS)} trekkers moving on the trail")
-    print(f"Path: {len(generate_path())} waypoints (25 total)")
+    print(f"Tracking {len(TREKKERS)} registered band(s) along the vector path.")
     print("="*60)
 
     full_path = generate_path(25)
 
     for checkpoint_num, point in enumerate(full_path, 1):
-        print(f"\n📍 CHECKPOINT {checkpoint_num}/25")
-        print(f"   Coordinates: ({point['lat']:.6f}, {point['lng']:.6f})")
-        print("   " + "-"*50)
+        print(f"\n📍 STEP PING {checkpoint_num}/25")
+        print(f"   Center Coordinates: ({point['lat']:.6f}, {point['lng']:.6f})")
+        print("   " + "-" * 52)
 
         for t in TREKKERS:
-            lat = point['lat'] + random.uniform(-0.0003, 0.0003)
-            lng = point['lng'] + random.uniform(-0.0003, 0.0003)
-            heart_rate = random.randint(85, 155)
+            # Inject slight drift variance to emulate real IoT GPS fluctuations
+            lat = point['lat'] + random.uniform(-0.0002, 0.0002)
+            lng = point['lng'] + random.uniform(-0.0002, 0.0002)
+            heart_rate = random.randint(95, 145)  # Realistic trekking pulse range
 
-            status, message = send_telemetry(t, lat, lng, heart_rate)
-            print(f"   {status} {t['name']:10} | HR: {heart_rate:3d} bpm | "
-                  f"Lat: {lat:.6f} | Lng: {lng:.6f}")
+            status, msg = send_telemetry(t, lat, lng, heart_rate)
+            print(f"   {status} Trekker: {t['name']} | Pulse: {heart_rate} BPM | Msg: {msg}")
 
-        print(f"   ⏳ Waiting 5 seconds before next checkpoint...")
+        print(f"   ⏳ Sync complete. Waiting 5s before next ping loop...")
         time.sleep(5)
 
-    print("="*60)
-    print("✅ TREK SIMULATION COMPLETE!")
+    print("\n" + "="*60)
+    print("🏁 SIMULATION ROUTE COMPLETE - DATA PIPELINE IDLE")
     print("="*60)
 
 if __name__ == "__main__":
     try:
         run_simulation()
     except KeyboardInterrupt:
-        print("\n\n⚠️  Simulation interrupted by user")
-    except Exception as e:
-        print(f"\n\n❌ Simulation error: {str(e)}")
+        print("\n\n⚠️ Simulation halted via console command.")

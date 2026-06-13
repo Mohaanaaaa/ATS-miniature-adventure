@@ -8,7 +8,7 @@ BASE_URL = "http://127.0.0.1:5000/api"
 
 # 4 Trekkers with unique Band IDs
 TREKKERS = [
-    {"name": "A", "band_id": "2026000100002", "contact": "9123406788"},
+    {"name": "A", "band_id": "2026000100001", "contact": "9123406788"},
     
 ]
 

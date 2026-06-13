@@ -1,87 +1,159 @@
-/* AdminLogin.css */
+/* ============================================================================
+   AdminLogin.css - Kumara Hills Vault Theme
+   ============================================================================ */
+
 .admin-login-container {
-  height: 100vh;
   display: flex;
-  align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+  align-items: center;
+  min-height: 100vh;
   position: relative;
+  font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+  padding: 20px;
+  box-sizing: border-box;
+  background: radial-gradient(circle at top right, #1a2332 0%, #0b0f19 100%);
+  overflow: hidden;
 }
 
-/* Blur Backgrounds */
-.matrix-bg { display: none; } /* Remove the code rain */
-
-.login-backdrop {
+/* Dynamic Ambient Matrix Drop Effect Background */
+.matrix-bg {
   position: absolute;
-  top: 20%;
-  left: 20%;
-  width: 300px;
-  height: 300px;
-  background: #bbdefb;
-  filter: blur(80px);
-  border-radius: 50%;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   z-index: 1;
+  opacity: 0.15;
+  background-color: transparent;
 }
 
 .login-box {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(20px);
+  background: #ffffff;
   padding: 40px;
-  border-radius: 30px;
+  border-radius: 16px;
   width: 100%;
-  max-width: 380px;
+  max-width: 420px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  box-sizing: border-box;
+  position: relative;
   z-index: 10;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  animation: vaultSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-header {
   text-align: center;
+  margin-bottom: 28px;
 }
 
 .login-header h1 {
-  font-size: 24px;
+  margin: 0 0 6px 0;
+  font-size: 1.45rem;
+  color: #0f172a;
   font-weight: 700;
-  color: #1c1c1e;
+  letter-spacing: -0.5px;
 }
 
-.form-group {
+.login-header p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.88rem;
+}
+
+/* Error Banner Elements */
+.error-alert {
+  padding: 12px 16px;
+  background-color: #fef2f2;
+  border: 1px solid #fee2e2;
+  color: #b91c1c;
+  border-radius: 8px;
+  font-size: 0.88rem;
   margin-bottom: 20px;
-  text-align: left;
+  font-weight: 500;
 }
 
-.form-group label {
-  font-size: 13px;
+/* Form Layout Inputs */
+.login-box .form-group {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.login-box .form-group label {
+  margin-bottom: 8px;
+  font-size: 0.85rem;
   font-weight: 600;
-  color: #8e8e93;
-  margin-left: 5px;
+  color: #475569;
 }
 
-.form-group input {
+.login-box .form-group input {
   width: 100%;
-  padding: 14px;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  border-radius: 14px;
-  font-size: 16px;
-  margin-top: 5px;
-  transition: all 0.2s;
+  padding: 12px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-sizing: border-box;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+  background-color: #f8fafc;
+  color: #0f172a;
 }
 
-.form-group input:focus {
+.login-box .form-group input:focus {
   outline: none;
-  border-color: #007aff;
-  background: white;
+  border-color: #3b82f6;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
 }
 
+.login-box .form-group input:disabled {
+  background-color: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+/* Actions Controls */
 .btn-login {
-  background: #007aff;
+  padding: 12px;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
   color: white;
   border: none;
-  padding: 14px;
-  width: 100%;
-  border-radius: 14px;
-  font-size: 17px;
-  font-weight: 600;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: bold;
   cursor: pointer;
-  box-shadow: 0 10px 20px rgba(0, 122, 255, 0.2);
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2);
 }
 
-.btn-login:hover { background: #0062cc; }
+.btn-login:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.3);
+}
+
+.btn-login:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Metadata Footer Panel */
+.login-footer {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid #f1f5f9;
+  text-align: center;
+}
+
+.login-footer p {
+  margin: 4px 0;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.login-footer .hint { color: #0284c7; }
+.login-footer .warning { color: #d97706; }
+
+@keyframes vaultSlideUp {
+  from { transform: translateY(15px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}

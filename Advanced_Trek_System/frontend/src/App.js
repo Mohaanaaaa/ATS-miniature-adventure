@@ -5,8 +5,10 @@ import {
 } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
+import './App.css';
 
 // --- CUSTOM ICONS ---
 const blueIcon = new L.Icon({
@@ -30,116 +32,67 @@ const greyIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-function App() {
-  // ========== ADMIN AUTHENTICATION STATE ==========
-  const [adminToken, setAdminToken] = useState(localStorage.getItem('admin_token'));
-  const [isMasterAdmin, setIsMasterAdmin] = useState(!!adminToken);
-  const [showLoginPage, setShowLoginPage] = useState(false);
+// 🛡️ SECURITY SHIELD: Checks localStorage to persist session on refresh
+const ProtectedRoute = ({ children }) => {
+  const token = localStorage.getItem('admin_token');
+  if (!token) {
+    return <Navigate to="/admin/login" replace />;
+  }
+  return children;
+};
 
-  // ========== TREKKER TRACKING STATE ==========
+// --- PUBLIC MAP VIEW (MAIN LAYOUT) ---
+function PublicMapComponent() {
+  const navigate = useNavigate();
+  const [availableShops, setAvailableShops] = useState([]);
   const [trekkers, setTrekkers] = useState([]);
-  const [viewMode, setViewMode] = useState('realtime');
-  const [formData, setFormData] = useState({ 
-    name: '', 
-    reg_id: '', 
-    emergency_contact: '', 
-    shop_id: 'shop_01' 
+  const [viewMode, setViewMode] = useState('realtime'); // 'realtime' or 'checkpoints'
+  
+  const [formData, setFormData] = useState({
+    name: '',
+    reg_id: '',
+    emergency_contact: '',
+    shop_id: 'shop_01'
   });
-  const [shops, setShops] = useState([]);
+
   const [mapConfig, setMapConfig] = useState(null);
-  const [currentShop, setCurrentShop] = useState('all');
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
   const mapCenter = [12.6654, 75.6601];
 
-  // ========== FILTER TREKKERS BY SHOP ==========
-  const filteredTrekkers = trekkers.filter(t => 
-    currentShop === 'all' || t.shop_id === currentShop
-  );
-
-  // ========== FETCH AVAILABLE SHOPS ==========
   useEffect(() => {
-    const fetchShops = async () => {
-      try {
-        const response = await fetch('http://127.0.0.1:5000/api/shops/dropdown/options');
-        const data = await response.json();
-        if (data.shops && data.shops.length > 0) {
-          setShops(data.shops);
-        } else {
-          // Fallback to default shops
-          setShops([
-            { value: 'shop_01', label: '🏕️ Shop 01 (Default)' },
-            { value: 'shop_02', label: '🏕️ Shop 02' },
-            { value: 'shop_03', label: '🏕️ Shop 03' },
-            { value: 'shop_04', label: '🏕️ Shop 04' }
-          ]);
-        }
-      } catch (err) {
-        console.error('Error fetching shops:', err);
-        // Use default options on error
-        setShops([
-          { value: 'shop_01', label: '🏕️ Shop 01 (Default)' }
-        ]);
-      }
-    };
-    
-    fetchShops();
-  }, []);
+    fetch('http://127.0.0.1:5000/api/shops/available')
+      .then(res => res.json())
+      .then(data => setAvailableShops(data.shops || []))
+      .catch(err => console.error(err));
 
-  // ========== HANDLE ADMIN LOGIN ==========
-  const handleAdminLogin = (token) => {
-    setAdminToken(token);
-    setIsMasterAdmin(true);
-    setShowLoginPage(false);
-    localStorage.setItem('admin_token', token);
-  };
-
-  // ========== HANDLE ADMIN LOGOUT ==========
-  const handleAdminLogout = () => {
-    localStorage.removeItem('admin_token');
-    setAdminToken(null);
-    setIsMasterAdmin(false);
-    setShowLoginPage(false);
-  };
-
-  // ========== HANDLE ENTER VAULT ==========
-  const handleEnterVault = () => {
-    if (isMasterAdmin) {
-      setShowLoginPage(false);
-    } else {
-      setShowLoginPage(true);
-    }
-  };
-
-  // ========== FETCH MAP CONFIG ==========
-  useEffect(() => {
     fetch('http://127.0.0.1:5000/api/map_config')
       .then(res => res.json())
       .then(data => setMapConfig(data))
-      .catch(err => console.error('Error loading map config:', err));
+      .catch(err => console.error(err));
   }, []);
 
-  // ========== FETCH ACTIVE TREKKERS ==========
   useEffect(() => {
-    const interval = setInterval(() => {
+    const fetchActiveTrekkers = () => {
       fetch('http://127.0.0.1:5000/api/active_trekkers')
         .then(res => res.json())
         .then(data => setTrekkers(data))
         .catch(err => console.error("Sync Error:", err));
-    }, 5000);
+    };
+
+    fetchActiveTrekkers();
+    const interval = setInterval(fetchActiveTrekkers, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // ========== HANDLE TREKKER REGISTRATION ==========
   const handleRegister = async (e) => {
     e.preventDefault();
     setLoading(true);
     setErrorMessage('');
     setSuccessMessage('');
 
-    // Validate Band ID is 13 digits
     if (formData.reg_id.length !== 13 || isNaN(formData.reg_id)) {
       setErrorMessage('❌ Band ID must be exactly 13 digits');
       setLoading(false);
@@ -152,11 +105,10 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
-
       const data = await res.json();
 
       if (res.ok) {
-        setSuccessMessage(`✅ Trekker "${formData.name}" registered with Band ID ${formData.reg_id}!`);
+        setSuccessMessage(`✅ Trekker "${formData.name}" registered successfully with Band ID ${formData.reg_id}!`);
         setFormData({ name: '', reg_id: '', emergency_contact: '', shop_id: 'shop_01' });
         setTimeout(() => setSuccessMessage(''), 3000);
       } else {
@@ -169,87 +121,30 @@ function App() {
     }
   };
 
-  // ========== CONDITIONAL RENDERING ==========
-  if (isMasterAdmin && !showLoginPage) {
-    return <AdminDashboard onLogout={handleAdminLogout} />;
-  }
-
-  if (showLoginPage) {
-    return <AdminLogin onLoginSuccess={handleAdminLogin} onCancel={() => setShowLoginPage(false)} />;
-  }
-
   if (!mapConfig) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh',
-        backgroundColor: '#f0f2f5',
-        flexDirection: 'column'
-      }}>
+      <div style={{ padding: '20px', textAlign: 'center', fontFamily: 'inherit' }}>
         <h2>🔄 Loading Secure Map Configuration...</h2>
         <p>Connecting to Trek System Database</p>
       </div>
     );
   }
 
-  // ========== MAIN UI ==========
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif', backgroundColor: '#f0f2f5' }}>
+    <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
       
-      {/* --- SIDEBAR --- */}
-      <div style={{ 
-        width: '380px', 
-        padding: '20px', 
-        borderRight: '1px solid #ddd', 
-        overflowY: 'auto', 
-        backgroundColor: '#fff',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-      }}>
+      {/* SIDEBAR PANEL */}
+      <div style={sidebarStyle}>
         <div style={{ marginBottom: '20px' }}>
-          <h2 style={{ color: '#007bff', marginBottom: '5px' }}>Trekker Command</h2>
-          <p style={{ fontSize: '12px', color: '#666', marginBottom: '0' }}>Kumara Hills Safety Monitor</p>
+          <h2 style={{ margin: '0 0 5px 0', fontSize: '24px', color: '#0f172a' }}>Trekker Command</h2>
+          <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>Kumara Hills Safety Monitor</p>
         </div>
 
-        {/* SUCCESS MESSAGE */}
-        {successMessage && (
-          <div style={{
-            padding: '10px',
-            marginBottom: '15px',
-            backgroundColor: '#d4edda',
-            border: '1px solid #c3e6cb',
-            color: '#155724',
-            borderRadius: '5px',
-            fontSize: '12px'
-          }}>
-            {successMessage}
-          </div>
-        )}
+        {successMessage && <div style={{ padding: '10px', backgroundColor: '#dcfce7', color: '#15803d', borderRadius: '4px', marginBottom: '15px', fontSize: '13px' }}>{successMessage}</div>}
+        {errorMessage && <div style={{ padding: '10px', backgroundColor: '#fee2e2', color: '#b91c1c', borderRadius: '4px', marginBottom: '15px', fontSize: '13px' }}>{errorMessage}</div>}
 
-        {/* ERROR MESSAGE */}
-        {errorMessage && (
-          <div style={{
-            padding: '10px',
-            marginBottom: '15px',
-            backgroundColor: '#f8d7da',
-            border: '1px solid #f5c6cb',
-            color: '#721c24',
-            borderRadius: '5px',
-            fontSize: '12px'
-          }}>
-            {errorMessage}
-          </div>
-        )}
-       
-        <form onSubmit={handleRegister} style={{ 
-          marginBottom: '30px', 
-          padding: '15px', 
-          background: '#f8f9fa', 
-          borderRadius: '8px', 
-          border: '1px solid #e9ecef' 
-        }}>
-          <h4 style={{ marginTop: 0, marginBottom: '15px' }}>📝 Register New Trekker</h4>
+        <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column' }}>
+          <h4 style={{ margin: '0 0 10px 0', color: '#334155' }}>📝 Register New Trekker</h4>
           
           <input 
             style={inputStyle} 
@@ -278,141 +173,95 @@ function App() {
             required 
             disabled={loading}
           />
-          
-          {/* SHOP DROPDOWN */}
-          <select 
-            style={{...inputStyle, marginBottom: '12px'}}
-            value={formData.shop_id}
-            onChange={e => setFormData({...formData, shop_id: e.target.value})}
-            disabled={loading || shops.length === 0}
-          >
-            <option value="">-- Select Shop --</option>
-            {shops.length > 0 ? (
-              shops.map(shop => (
-                <option key={shop.value} value={shop.value}>
-                  {shop.label}
-                </option>
-              ))
-            ) : (
-              <option value="shop_01">🏕️ Shop 01 (Default)</option>
-            )}
-          </select>
 
-          <button 
-            type="submit" 
-            style={{...btnStyle, opacity: loading ? 0.6 : 1, cursor: loading ? 'not-allowed' : 'pointer'}}
-            disabled={loading}
-          >
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#64748b', marginBottom: '4px' }}>Select Registration Base Station:</label>
+            <select
+              style={inputStyle}
+              value={formData.shop_id}
+              onChange={(e) => setFormData({ ...formData, shop_id: e.target.value })}
+              required
+            >
+              <option value="">-- Choose a Registered Base Camp --</option>
+              {availableShops.map((shop) => (
+                <option key={shop.shop_id} value={shop.shop_id}>
+                  🏢 {shop.shop_name} ({shop.contact_person})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button type="submit" style={btnStyle} disabled={loading}>
             {loading ? '⏳ Registering...' : '✅ Activate Band'}
           </button>
         </form>
 
-        {/* ========== VAULT ACCESS SECTION ========== */}
-        <div style={{
-          backgroundColor: '#1c1f24',
-          padding: '15px',
-          borderRadius: '8px',
-          border: '2px solid #00ff41',
-          marginBottom: '20px',
-          boxShadow: '0 0 10px rgba(0, 255, 65, 0.2)'
-        }}>
-          <h4 style={{ marginTop: 0, fontSize: '13px', marginBottom: '10px', color: '#00ff41' }}>
-            🔐 Master Admin Access
-          </h4>
-          <button 
-            onClick={handleEnterVault}
-            style={{
-              width: '100%',
-              padding: '10px',
-              backgroundColor: '#1c1f24',
-              color: '#00ff41',
-              border: '1px solid #00ff41',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: '600',
-              textTransform: 'uppercase',
-              transition: 'all 0.3s ease',
-              fontFamily: 'monospace'
-            }}
-            onMouseOver={(e) => {
-              e.target.style.backgroundColor = '#00ff41';
-              e.target.style.color = '#1c1f24';
-              e.target.style.boxShadow = '0 0 15px rgba(0, 255, 65, 0.5)';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.backgroundColor = '#1c1f24';
-              e.target.style.color = '#00ff41';
-              e.target.style.boxShadow = 'none';
-            }}
-          >
-            {isMasterAdmin ? '🔓 Dashboard' : '🔓 Enter Vault'}
+        {/* MASTER VAULT TERMINAL */}
+        <div style={{ marginTop: '25px', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+          <h4 style={{ margin: '0 0 10px 0', color: '#334155', fontSize: '14px' }}>マスターヴォールト Master Vault</h4>
+          <button type="button" onClick={() => navigate('/admin/login')} style={vaultBtnStyle}>
+            🔓 Enter Vault
           </button>
-          <p style={{ fontSize: '11px', color: '#888', marginTop: '10px', marginBottom: 0 }}>
-            <em>admin / kp-vault-2026</em>
+          <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#94a3b8' }}>
+            <em>Restricted Access : Only Authorized Personnel</em>
           </p>
         </div>
 
-        <hr style={{ border: '0', borderTop: '1px solid #eee', margin: '20px 0' }} />
+        <hr style={{ margin: '20px 0', border: 'none', borderTop: '1px solid #e2e8f0' }} />
 
+        {/* VIEW MODE SELECTION CONTROLS */}
         <div style={{ marginBottom: '20px' }}>
-          <h4 style={{ marginBottom: '10px' }}>🎯 View Controls</h4>
+          <h4 style={{ margin: '0 0 10px 0', color: '#334155', fontSize: '14px' }}>🎯 View Controls</h4>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button 
+              type="button"
               onClick={() => setViewMode('realtime')} 
-              style={{...toggleBtn, backgroundColor: viewMode === 'realtime' ? '#007bff' : '#6c757d'}}
+              style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', fontWeight: 'bold', backgroundColor: viewMode === 'realtime' ? '#1e293b' : '#fff', color: viewMode === 'realtime' ? '#fff' : '#1e293b' }}
             >
               📍 Live Path
             </button>
             <button 
+              type="button"
               onClick={() => setViewMode('checkpoints')} 
-              style={{...toggleBtn, backgroundColor: viewMode === 'checkpoints' ? '#007bff' : '#6c757d'}}
+              style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', fontWeight: 'bold', backgroundColor: viewMode === 'checkpoints' ? '#1e293b' : '#fff', color: viewMode === 'checkpoints' ? '#fff' : '#1e293b' }}
             >
               📊 15-Min Logs
             </button>
           </div>
         </div>
-        
-        <h4>👥 Active Trekkers ({filteredTrekkers.length})</h4>
-        {filteredTrekkers.length === 0 ? (
-          <p style={{ color: '#999', fontSize: '13px' }}>No active trekkers</p>
-        ) : (
-          filteredTrekkers.map(t => (
-            <div key={t.id} style={{
-              padding: '15px', 
-              marginBottom: '12px',
-              borderRadius: '8px',
-              backgroundColor: t.is_sos ? '#fff5f5' : '#fff',
-              borderLeft: t.is_sos ? '6px solid #dc3545' : '6px solid #28a745',
-              boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-              border: '1px solid #eee'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <strong style={{ fontSize: '15px' }}>{t.name}</strong>
-                <span style={{ fontSize: '11px', color: '#666', backgroundColor: '#f0f0f0', padding: '3px 8px', borderRadius: '3px' }}>
-                  {t.band_id}
-                </span>
+
+        <h4 style={{ margin: '0 0 10px 0', color: '#334155' }}>👥 Active Trekkers ({trekkers.length})</h4>
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {trekkers.length === 0 ? (
+            <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>No active trekkers</p>
+          ) : (
+            trekkers.map(t => (
+              <div key={t.id} style={{ padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: t.is_sos ? '#fef2f2' : '#fff', borderColor: t.is_sos ? '#fca5a5' : '#cbd5e1' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <strong style={{ color: '#1e293b' }}>{t.name}</strong>
+                  <span style={{ fontSize: '11px', backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', color: '#64748b' }}>{t.band_id}</span>
+                </div>
+                <p style={{ margin: '6px 0', fontSize: '13px', fontWeight: 'bold', color: t.is_sos ? '#dc2626' : '#16a34a' }}>
+                  {t.is_sos ? "🚨 EMERGENCY" : `💓 Pulse: ${t.hr} BPM`}
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748b' }}>
+                  <span>🔋 {t.batt || 100}%</span>
+                  <span style={{ fontWeight: 'bold', color: (t.batt || 100) < 20 ? '#dc2626' : '#16a34a' }}>
+                    {(t.batt || 100) < 20 ? 'LOW' : 'OK'}
+                  </span>
+                </div>
               </div>
-              <p style={{ margin: '10px 0 8px 0', fontSize: '13px', color: t.is_sos ? '#dc3545' : '#28a745', fontWeight: 'bold' }}>
-                {t.is_sos ? "🚨 EMERGENCY" : `💓 Pulse: ${t.hr} BPM`}
-              </p>    
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                <span>🔋 {t.battery || 100}%</span>
-                <span style={{ color: (t.battery || 100) < 20 ? 'red' : 'green', fontWeight: 'bold' }}>
-                  {(t.battery || 100) < 20 ? 'LOW' : 'OK'}
-                </span>
-              </div>      
-            </div>
-          ))
-        )}
+            ))
+          )}
+        </div>
       </div>
 
-      {/* --- LIVE MAP --- */}
-      <div style={{ flex: 1 }}>
-        <MapContainer center={mapCenter} zoom={10} style={{ height: "100%", width: "100%" }}>
+      {/* MAP CONTROLLER CANVAS VIEW */}
+      <div style={{ flex: 1, height: '100%' }}>
+        <MapContainer center={mapCenter} zoom={14} style={{ height: "100%", width: "100%" }}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
-          {/* Safe Zones */}
+          {/* Boundaries */}
           <Circle 
             center={[mapConfig.outer_border.lat, mapConfig.outer_border.lng]} 
             radius={mapConfig.outer_border.radius * 1000} 
@@ -429,22 +278,24 @@ function App() {
             </Circle>
           ))}
 
-          {/* TREKKERS */}
-          {filteredTrekkers.map((t) => {
+          {/* Trekkers Mapping Loop */}
+          {trekkers.map((t) => {
             const isLost = t.is_lost;
             let markerIcon = blueIcon;
             if (t.is_sos) markerIcon = redIcon;
             if (isLost) markerIcon = greyIcon;
             if (!t.current_pos) return null;
             
+            // 🔥 FIXED: Added safe fallback (t.history || []) to prevent the "Cannot read properties of undefined" filter crash
+            const currentHistory = t.history || [];
             const historyPoints = viewMode === 'checkpoints' 
-              ? t.history.filter((_, idx) => idx % 30 === 0) 
-              : t.history;
+              ? currentHistory.filter((_, idx) => idx % 30 === 0) 
+              : currentHistory;
 
             return (
               <LayerGroup key={t.id}>
                 <Polyline 
-                  positions={t.history.map(h => h.pos)} 
+                  positions={currentHistory.map(h => h.pos)} 
                   pathOptions={{ color: t.is_sos ? '#dc3545' : '#007bff', weight: 4, opacity: 0.6 }} 
                 />
 
@@ -460,8 +311,8 @@ function App() {
                         <b style={{ color: '#007bff' }}>{t.name}</b><br/>
                         🕒 Time: {pointObj.time}<br/>
                         💓 Heart: {pointObj.hr} BPM<br/>
-                        📍 <b>Lat:</b> {pointObj.pos[0].toFixed(5)}<br/>
-                        📍 <b>Lng:</b> {pointObj.pos[1].toFixed(5)}<br/>
+                        📍 <b>Lat:</b> {pointObj.pos[0]?.toFixed(5)}<br/>
+                        📍 <b>Lng:</b> {pointObj.pos[1]?.toFixed(5)}<br/>
                       </div>
                     </Tooltip>
                   </CircleMarker>
@@ -469,12 +320,12 @@ function App() {
 
                 <Marker position={t.current_pos} icon={markerIcon}>
                   <Popup>
-                    <div style={{ textAlign: 'center', minWidth: '150px' }}>
-                      <strong style={{ fontSize: '13px' }}>{t.name}</strong><br/>
+                    <div style={{ width: '160px', fontFamily: 'inherit' }}>
+                      <strong>{t.name}</strong><br/>
                       {isLost ? (
-                        <span style={{color: 'grey'}}>⚠️ SIGNAL LOST ({t.last_seen_mins}m ago)</span>
+                        <span style={{ color: 'grey' }}>⚠️ SIGNAL LOST ({t.last_seen_mins}m ago)</span>
                       ) : (
-                        <b style={{color: 'green'}}>🟢 LIVE</b>
+                        <b style={{ color: 'green' }}>🟢 LIVE</b>
                       )}
                       <div style={{ 
                         margin: '10px 0', 
@@ -483,7 +334,8 @@ function App() {
                         backgroundColor: t.is_sos ? '#ffebee' : '#e8f5e9',
                         color: t.is_sos ? '#c62828' : '#2e7d32',
                         fontWeight: 'bold',
-                        fontSize: '12px'
+                        fontSize: '12px',
+                        textAlign: 'center'
                       }}>
                         {t.is_sos ? "OUT OF RANGE" : "SAFE ON TRAIL"}
                       </div>
@@ -500,41 +352,72 @@ function App() {
   );
 }
 
-// --- CSS-in-JS STYLES ---
+// --- APP ROUTER HUB ---
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<PublicMapComponent />} />
+        <Route path="/admin/login" element={<AdminLogin onLoginSuccess={(token) => { localStorage.setItem('admin_token', token); window.location.href='/admin/dashboard'; }} onCancel={() => window.location.href='/'} />} />
+        <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard onLogout={() => { localStorage.removeItem('admin_token'); window.location.href='/'; }} /></ProtectedRoute>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Router>
+  );
+}
+
+// --- ORIGINAL SIDEBAR AND INPUT STYLES ---
+const sidebarStyle = {
+  width: '360px',
+  backgroundColor: '#ffffff',
+  boxShadow: '4px 0 24px rgba(0,0,0,0.08)',
+  padding: '24px',
+  display: 'flex',
+  flexDirection: 'column',
+  height: '100vh',
+  boxSizing: 'border-box',
+  zIndex: 1000,
+  overflow: 'hidden',
+  fontFamily: 'system-ui, -apple-system, sans-serif'
+};
+
 const inputStyle = { 
   width: '100%', 
-  padding: '10px', 
-  marginBottom: '12px', 
+  padding: '11px 14px', 
+  marginBottom: '14px', 
   boxSizing: 'border-box', 
-  borderRadius: '5px', 
-  border: '1px solid #ddd', 
+  borderRadius: '6px', 
+  border: '1px solid #cbd5e1', 
   fontSize: '14px',
-  fontFamily: 'inherit'
+  fontFamily: 'inherit',
+  backgroundColor: '#ffffff',
+  color: '#1e293b'
 };
 
 const btnStyle = { 
   width: '100%', 
   padding: '12px', 
-  backgroundColor: '#28a745', 
+  backgroundColor: '#16a34a', 
   color: 'white', 
   border: 'none', 
-  borderRadius: '5px', 
-  cursor: 'pointer', 
-  fontWeight: 'bold', 
+  borderRadius: '6px', 
+  fontWeight: '600', 
   fontSize: '14px',
-  transition: 'all 0.3s ease'
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  boxShadow: '0 2px 4px rgba(22,163,74,0.2)'
 };
 
-const toggleBtn = { 
-  flex: 1, 
-  padding: '10px', 
-  color: 'white', 
-  border: 'none', 
-  borderRadius: '5px', 
-  cursor: 'pointer', 
-  fontSize: '13px', 
-  fontWeight: '600', 
-  transition: '0.3s' 
+const vaultBtnStyle = {
+  width: '100%',
+  padding: '12px',
+  background: 'linear-gradient(135deg, #475569 0%, #1e293b 100%)',
+  color: 'white',
+  border: 'none',
+  borderRadius: '6px',
+  cursor: 'pointer',
+  fontWeight: 'bold',
+  fontSize: '14px'
 };
 
 export default App;

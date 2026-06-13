@@ -1,38 +1,360 @@
-.App {
-  text-align: center;
-}
+/* ============================================================================
+   App.css - Trekker Command System UI Stylesheet
+   ============================================================================ */
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+/* Main Layout Framework */
+.dashboard-app-container {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
+  height: 100vh;
+  font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: #f0f2f5;
+}
+
+/* Sidebar Navigation Panel */
+.dashboard-sidebar {
+  width: 380px;
+  padding: 20px;
+  border-right: 1px solid #e2e8f0;
+  overflow-y: auto;
+  background-color: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  box-sizing: border-box;
+}
+
+.sidebar-header {
+  margin-bottom: 20px;
+}
+
+.sidebar-header h2 {
+  color: #2563eb;
+  margin: 0 0 4px 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.sidebar-header p {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0;
+  font-weight: 500;
+}
+
+/* Message Banners */
+.alert-banner-success {
+  padding: 12px;
+  margin-bottom: 15px;
+  background-color: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.alert-banner-error {
+  padding: 12px;
+  margin-bottom: 15px;
+  background-color: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Base Camp Enrollment Form Cards */
+.trekker-registration-form {
+  margin-bottom: 30px;
+  padding: 20px;
+  background-color: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.trekker-registration-form h4 {
+  margin-top: 0;
+  margin-bottom: 16px;
+  color: #1e293b;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.dropdown-field-container {
+  margin-bottom: 14px;
+}
+
+.dropdown-field-container label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 12px;
+  color: #475569;
+}
+
+/* System Form Control Standard Elements */
+.dashboard-input-field {
+  width: 100%;
+  padding: 11px 14px;
+  margin-bottom: 14px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  font-size: 14px;
+  font-family: inherit;
+  background-color: #ffffff;
+  color: #1e293b;
+  transition: all 0.15s ease;
+}
+
+.dashboard-input-field:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.dashboard-input-field:disabled {
+  background-color: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+/* Master Primary Activation Action Button */
+.btn-submit-registration {
+  width: 100%;
+  padding: 12px;
+  background-color: #16a34a;
   color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 2px 4px rgba(22, 163, 74, 0.2);
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.App-link {
-  color: #61dafb;
+.btn-submit-registration:hover:not(:disabled) {
+  background-color: #15803d;
+  box-shadow: 0 4px 6px rgba(21, 128, 61, 0.25);
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+/* Cyber Vault Terminal Security Pod Layout */
+.vault-access-terminal-pod {
+  background-color: #111827;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #10b981;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+}
+
+.vault-access-terminal-pod h4 {
+  margin-top: 0;
+  font-size: 13px;
+  margin-bottom: 12px;
+  color: #10b981;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.vault-terminal-btn {
+  width: 100%;
+  padding: 10px;
+  background-color: transparent;
+  color: #10b981;
+  border: 1px solid #10b981;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.vault-terminal-btn:hover {
+  background-color: #10b981;
+  color: #111827;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+}
+
+.vault-access-terminal-pod .terminal-meta-hint {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 10px;
+  margin-bottom: 0;
+  font-family: monospace;
+}
+
+/* Controls And List Containers */
+.view-controls-section {
+  margin-bottom: 20px;
+}
+
+.view-controls-section h4 {
+  margin: 0 0 12px 0;
+  color: #1e293b;
+  font-size: 14px;
+}
+
+.btn-toggle-group {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-view-toggle {
+  flex: 1;
+  padding: 10px;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: background-color 0.15s ease;
+}
+
+.btn-view-toggle.active {
+  background-color: #2563eb;
+}
+
+.btn-view-toggle.inactive {
+  background-color: #64748b;
+}
+
+.btn-view-toggle.active:hover {
+  background-color: #1d4ed8;
+}
+
+.btn-view-toggle.inactive:hover {
+  background-color: #475569;
+}
+
+/* Individual Trekker Identity Block Cards */
+.trekker-list-card {
+  padding: 15px; 
+  margin-bottom: 12px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.02);
+  border: 1px solid #e2e8f0;
+  transition: transform 0.15s ease;
+}
+
+.trekker-list-card:hover {
+  transform: translateX(2px);
+}
+
+.trekker-list-card.status-safe {
+  background-color: #ffffff;
+  border-left: 6px solid #10b981;
+}
+
+.trekker-list-card.status-sos {
+  background-color: #fff5f5;
+  border-left: 6px solid #ef4444;
+}
+
+.trekker-card-header {
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center;
+}
+
+.trekker-card-header strong {
+  font-size: 15px;
+  color: #1e293b;
+}
+
+.trekker-card-id-badge {
+  font-size: 11px; 
+  color: #475569; 
+  background-color: #f1f5f9; 
+  padding: 3px 8px; 
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.trekker-pulse-metric {
+  margin: 10px 0 8px 0; 
+  font-size: 13px; 
+  font-weight: 700;
+}
+
+.trekker-pulse-metric.status-safe { color: #10b981; }
+.trekker-pulse-metric.status-sos { color: #ef4444; }
+
+.trekker-card-footer {
+  display: flex; 
+  justify-content: space-between; 
+  font-size: 12px;
+  color: #64748b;
+}
+
+.battery-text-indicator {
+  font-weight: 700;
+}
+
+.battery-text-indicator.low { color: #ef4444; }
+.battery-text-indicator.normal { color: #10b981; }
+
+/* Structural Horizontal Divider lines */
+.sidebar-divider {
+  border: 0; 
+  border-top: 1px solid #e2e8f0; 
+  margin: 20px 0;
+}
+
+/* Map Grid Wrapper View Panel */
+.live-map-view-pane {
+  flex: 1;
+}
+
+/* Interactive Leaflet Popup Internal Formatting */
+.map-popup-container {
+  text-align: center; 
+  min-width: 150px;
+}
+
+.map-popup-container strong {
+  font-size: 13px;
+}
+
+.map-popup-status-badge {
+  margin: 10px 0; 
+  padding: 5px; 
+  border-radius: 4px;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.map-popup-status-badge.safe {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.map-popup-status-badge.sos {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+/* Global Application Initialization Screen Overlay */
+.app-loading-fallback-viewport {
+  display: flex; 
+  justify-content: center; 
+  align-items: center; 
+  height: 100vh;
+  background-color: #f0f2f5;
+  flex-direction: column;
+}
+
+.app-loading-fallback-viewport h2 {
+  color: #1e293b;
+  margin-bottom: 6px;
+}
+
+.app-loading-fallback-viewport p {
+  color: #64748b;
+  margin: 0;
 }
