@@ -86,48 +86,57 @@ def get_map_config():
     })
 
 @app.route('/api/start_trek', methods=['POST'])
-def start_trek():
+def start_trekker_trip():
     """
-    [FUNCTION LABEL: TRACKING_BAND_ACTIVATION_ENGINE]
-    Registers or pulls a Trekker profile and activates a tracking band session row.
-    Payload: { "reg_id": "13_digits", "name": "...", "emergency_contact": "...", "shop_id": "..." }
+    Registers a new trekker and assigns them to an active band tracking trip.
+    Validates that the 13-digit Band ID is unique and not currently deployed on the trail.
     """
-    data = request.json
-    if not data:
-        return jsonify({"error": "No data provided"}), 400
-        
-    reg_id = data.get('reg_id')
+    data = request.get_json() or {}
     name = data.get('name')
-    emergency = data.get('emergency_contact')
+    reg_id = data.get('reg_id') # The unique 13-digit identifier from the frontend form
+    emergency_contact = data.get('emergency_contact')
     shop_id = data.get('shop_id', 'shop_01')
-    
-    try:
-        trekker = Trekker.query.filter_by(reg_id=reg_id).first()
-        if not trekker:
-            trekker = Trekker(name=name, reg_id=reg_id, emergency_contact=emergency)
-            db.session.add(trekker)
-            db.session.flush()
 
-        existing_trip = Trip.query.filter_by(band_id=reg_id, is_active=True).first()
-        if existing_trip:
-            return jsonify({"message": "Trekker is already active", "trip_id": existing_trip.id}), 200
- 
+    if not name or not reg_id or not emergency_contact:
+        return jsonify({"error": "Missing registration parameters. All fields are mandatory."}), 400
+
+    try:
+        # 🛡️ ZERO-CONFLICT UNIQUE GUARD:
+        # We query strictly using the 'is_active' attribute defined in your models.py
+        existing_active_trip = Trip.query.filter_by(band_id=reg_id, is_active=True).first()
+        if existing_active_trip:
+            return jsonify({
+                "error": f"Band ID {reg_id} is already actively deployed on the trail! Please use a different, unassigned tracking band."
+            }), 409 # Conflict Status Code
+
+        # 1. Spawn persistent Trekker Identity record matching schema columns
+        new_trekker = Trekker(
+            name=name,
+            reg_id=reg_id, 
+            emergency_contact=emergency_contact
+        )
+        db.session.add(new_trekker)
+        db.session.flush()  # Allocates new_trekker.id cleanly in memory
+
+        # 2. Build deployment Tracking Trip assignment record matching models.py exactly
         new_trip = Trip(
-            trekker_id=trekker.id, 
+            trekker_id=new_trekker.id,
             band_id=reg_id,
             shop_id=shop_id,
-            start_time=datetime.now(timezone.utc), 
-            is_active=True
+            is_active=True  # Safely writes to your exact database boolean column
         )
         db.session.add(new_trip)
-        db.session.commit()
-        
-        return jsonify({"message": "Trekker registered and band activated!", "trip_id": new_trip.id}), 201
-        
+        db.session.commit() # Safely commit transaction block to trek_system.db
+
+        return jsonify({
+            "message": "Trekker successfully initialized!",
+            "trekker_id": new_trekker.id,
+            "trip_id": new_trip.id
+        }), 201
+
     except Exception as e:
         db.session.rollback()
-        print(f"CRITICAL ERROR: {str(e)}")
-        return jsonify({"error": "Internal Server Error", "details": str(e)}), 500
+        return jsonify({"error": f"Database write failure: {str(e)}"}), 500
 
 @app.route('/api/ingest', methods=['POST'])
 def ingest_data():
@@ -186,7 +195,7 @@ def get_active_trekkers():
     now = datetime.now(timezone.utc)
     
     for trip in active_trips:
-        trekker = Trekker.query.get(trip.trekker_id)
+        trekker = db.session.get(Trekker, trip.trekker_id)
         detailed_history = []
         for loc in trip.locations:
             detailed_history.append({
@@ -507,7 +516,7 @@ def update_shop_profile(shop_id):
     Modifies configuration rules, ranges, limits, or parameters for an active station layout.
     """
     try:
-        shop = Shop.query.get(shop_id)
+        shop = db.session.get(Shop, shop_id)
         if not shop:
             return jsonify({"error": "Target station data profile not found."}), 404
             
@@ -534,7 +543,7 @@ def delete_shop_profile(shop_id):
     Drops an operational base station completely out of the system layout.
     """
     try:
-        shop = Shop.query.get(shop_id)
+        shop = db.session.get(Shop, shop_id)
         if not shop:
             return jsonify({"error": "Target station profile does not exist."}), 404
             

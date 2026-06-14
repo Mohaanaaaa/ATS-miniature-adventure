@@ -32,7 +32,7 @@ const greyIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-// 🛡️ SECURITY SHIELD: Checks localStorage to persist session on refresh
+// 🛡️ SECURITY SHIELD
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('admin_token');
   if (!token) {
@@ -41,12 +41,12 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// --- PUBLIC MAP VIEW (MAIN LAYOUT) ---
+// --- PUBLIC MAP VIEW ---
 function PublicMapComponent() {
   const navigate = useNavigate();
   const [availableShops, setAvailableShops] = useState([]);
   const [trekkers, setTrekkers] = useState([]);
-  const [viewMode, setViewMode] = useState('realtime'); // 'realtime' or 'checkpoints'
+  const [viewMode, setViewMode] = useState('realtime'); 
   
   const [formData, setFormData] = useState({
     name: '',
@@ -93,6 +93,7 @@ function PublicMapComponent() {
     setErrorMessage('');
     setSuccessMessage('');
 
+    // Pre-flight length structure format assertion check
     if (formData.reg_id.length !== 13 || isNaN(formData.reg_id)) {
       setErrorMessage('❌ Band ID must be exactly 13 digits');
       setLoading(false);
@@ -108,14 +109,17 @@ function PublicMapComponent() {
       const data = await res.json();
 
       if (res.ok) {
+        // 🎉 Registration verified and written to database successfully
         setSuccessMessage(`✅ Trekker "${formData.name}" registered successfully with Band ID ${formData.reg_id}!`);
+        // Clean out form inputs for the next input cycle
         setFormData({ name: '', reg_id: '', emergency_contact: '', shop_id: 'shop_01' });
-        setTimeout(() => setSuccessMessage(''), 3000);
+        setTimeout(() => setSuccessMessage(''), 4000);
       } else {
-        setErrorMessage(`❌ ${data.error || 'Registration failed'}`);
+        // 🚨 Capture duplication conflicts or engine limits safely
+        setErrorMessage(`❌ Registration Denied: ${data.error || 'Server error occurred'}`);
       }
     } catch (err) {
-      setErrorMessage(`❌ Error: ${err.message}`);
+      setErrorMessage(`❌ Network Error: Unable to connect to the tracking server.`);
     } finally {
       setLoading(false);
     }
@@ -135,108 +139,111 @@ function PublicMapComponent() {
       
       {/* SIDEBAR PANEL */}
       <div style={sidebarStyle}>
-        <div style={{ marginBottom: '20px' }}>
+        {/* Header Block */}
+        <div style={{ flexShrink: 0, marginBottom: '15px' }}>
           <h2 style={{ margin: '0 0 5px 0', fontSize: '24px', color: '#0f172a' }}>Trekker Command</h2>
           <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>Kumara Hills Safety Monitor</p>
         </div>
 
-        {successMessage && <div style={{ padding: '10px', backgroundColor: '#dcfce7', color: '#15803d', borderRadius: '4px', marginBottom: '15px', fontSize: '13px' }}>{successMessage}</div>}
-        {errorMessage && <div style={{ padding: '10px', backgroundColor: '#fee2e2', color: '#b91c1c', borderRadius: '4px', marginBottom: '15px', fontSize: '13px' }}>{errorMessage}</div>}
+        {/* Dynamic Static Form Wrapper container */}
+        <div style={{ flexShrink: 0 }}>
+          {successMessage && <div style={{ padding: '10px', backgroundColor: '#dcfce7', color: '#15803d', borderRadius: '4px', marginBottom: '15px', fontSize: '13px' }}>{successMessage}</div>}
+          {errorMessage && <div style={{ padding: '10px', backgroundColor: '#fee2e2', color: '#b91c1c', borderRadius: '4px', marginBottom: '15px', fontSize: '13px' }}>{errorMessage}</div>}
 
-        <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column' }}>
-          <h4 style={{ margin: '0 0 10px 0', color: '#334155' }}>📝 Register New Trekker</h4>
-          
-          <input 
-            style={inputStyle} 
-            placeholder="Full Name" 
-            value={formData.name} 
-            onChange={e => setFormData({...formData, name: e.target.value})} 
-            required 
-            disabled={loading}
-          />
-          
-          <input 
-            style={inputStyle} 
-            placeholder="13-Digit Band ID" 
-            value={formData.reg_id} 
-            onChange={e => setFormData({...formData, reg_id: e.target.value})} 
-            maxLength="13"
-            required 
-            disabled={loading}
-          />
-          
-          <input 
-            style={inputStyle} 
-            placeholder="Emergency Contact" 
-            value={formData.emergency_contact} 
-            onChange={e => setFormData({...formData, emergency_contact: e.target.value})} 
-            required 
-            disabled={loading}
-          />
+          <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column' }}>
+            <h4 style={{ margin: '0 0 10px 0', color: '#334155' }}>📝 Register New Trekker</h4>
+            
+            <input 
+              style={inputStyle} 
+              placeholder="Full Name" 
+              value={formData.name} 
+              onChange={e => setFormData({...formData, name: e.target.value})} 
+              required 
+              disabled={loading}
+            />
+            
+            <input 
+              style={inputStyle} 
+              placeholder="13-Digit Band ID" 
+              value={formData.reg_id} 
+              onChange={e => setFormData({...formData, reg_id: e.target.value})} 
+              maxLength="13"
+              required 
+              disabled={loading}
+            />
+            
+            <input 
+              style={inputStyle} 
+              placeholder="Emergency Contact" 
+              value={formData.emergency_contact} 
+              onChange={e => setFormData({...formData, emergency_contact: e.target.value})} 
+              required 
+              disabled={loading}
+            />
 
-          <div style={{ marginBottom: '12px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#64748b', marginBottom: '4px' }}>Select Registration Base Station:</label>
-            <select
-              style={inputStyle}
-              value={formData.shop_id}
-              onChange={(e) => setFormData({ ...formData, shop_id: e.target.value })}
-              required
-            >
-              <option value="">-- Choose a Registered Base Camp --</option>
-              {availableShops.map((shop) => (
-                <option key={shop.shop_id} value={shop.shop_id}>
-                  🏢 {shop.shop_name} ({shop.contact_person})
-                </option>
-              ))}
-            </select>
-          </div>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#64748b', marginBottom: '4px' }}>Select Registration Base Station:</label>
+              <select
+                style={inputStyle}
+                value={formData.shop_id}
+                onChange={(e) => setFormData({ ...formData, shop_id: e.target.value })}
+                required
+              >
+                <option value="">-- Choose a Registered Base Camp --</option>
+                {availableShops.map((shop) => (
+                  <option key={shop.shop_id} value={shop.shop_id}>
+                    🏢 {shop.shop_name} ({shop.contact_person})
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <button type="submit" style={btnStyle} disabled={loading}>
-            {loading ? '⏳ Registering...' : '✅ Activate Band'}
-          </button>
-        </form>
-
-        {/* MASTER VAULT TERMINAL */}
-        <div style={{ marginTop: '25px', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-          <h4 style={{ margin: '0 0 10px 0', color: '#334155', fontSize: '14px' }}>マスターヴォールト Master Vault</h4>
-          <button type="button" onClick={() => navigate('/admin/login')} style={vaultBtnStyle}>
-            🔓 Enter Vault
-          </button>
-          <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#94a3b8' }}>
-            <em>Restricted Access : Only Authorized Personnel</em>
-          </p>
-        </div>
-
-        <hr style={{ margin: '20px 0', border: 'none', borderTop: '1px solid #e2e8f0' }} />
-
-        {/* VIEW MODE SELECTION CONTROLS */}
-        <div style={{ marginBottom: '20px' }}>
-          <h4 style={{ margin: '0 0 10px 0', color: '#334155', fontSize: '14px' }}>🎯 View Controls</h4>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button 
-              type="button"
-              onClick={() => setViewMode('realtime')} 
-              style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', fontWeight: 'bold', backgroundColor: viewMode === 'realtime' ? '#1e293b' : '#fff', color: viewMode === 'realtime' ? '#fff' : '#1e293b' }}
-            >
-              📍 Live Path
+            <button type="submit" style={btnStyle} disabled={loading}>
+              {loading ? '⏳ Registering...' : '✅ Activate Band'}
             </button>
-            <button 
-              type="button"
-              onClick={() => setViewMode('checkpoints')} 
-              style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', fontWeight: 'bold', backgroundColor: viewMode === 'checkpoints' ? '#1e293b' : '#fff', color: viewMode === 'checkpoints' ? '#fff' : '#1e293b' }}
-            >
-              📊 15-Min Logs
+          </form>
+
+          {/* MASTER VAULT TERMINAL */}
+          <div style={{ marginTop: '15px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+            <h4 style={{ margin: '0 0 8px 0', color: '#334155', fontSize: '14px' }}>マスターヴォールト Master Vault</h4>
+            <button type="button" onClick={() => navigate('/admin/login')} style={vaultBtnStyle}>
+              🔓 Enter Vault
             </button>
           </div>
+
+          <hr style={{ margin: '15px 0', border: 'none', borderTop: '1px solid #e2e8f0' }} />
+
+          {/* VIEW MODE SELECTION CONTROLS */}
+          <div style={{ marginBottom: '15px' }}>
+            <h4 style={{ margin: '0 0 10px 0', color: '#334155', fontSize: '14px' }}>🎯 View Controls</h4>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                type="button"
+                onClick={() => setViewMode('realtime')} 
+                style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', fontWeight: 'bold', backgroundColor: viewMode === 'realtime' ? '#1e293b' : '#fff', color: viewMode === 'realtime' ? '#fff' : '#1e293b' }}
+              >
+                📍 Live Path
+              </button>
+              <button 
+                type="button"
+                onClick={() => setViewMode('checkpoints')} 
+                style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', fontWeight: 'bold', backgroundColor: viewMode === 'checkpoints' ? '#1e293b' : '#fff', color: viewMode === 'checkpoints' ? '#fff' : '#1e293b' }}
+              >
+                📊 15-Min Logs
+              </button>
+            </div>
+          </div>
+
+          <h4 style={{ margin: '0 0 10px 0', color: '#334155' }}>👥 Active Trekkers ({trekkers.length})</h4>
         </div>
 
-        <h4 style={{ margin: '0 0 10px 0', color: '#334155' }}>👥 Active Trekkers ({trekkers.length})</h4>
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {/* 🔥 HIGHLY COMPLIANT SCROLL ENGINE CONTAINER BOX */}
+        <div style={scrollContainerStyle}>
           {trekkers.length === 0 ? (
-            <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>No active trekkers</p>
+            <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0, paddingBottom: '20px' }}>No active trekkers</p>
           ) : (
             trekkers.map(t => (
-              <div key={t.id} style={{ padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: t.is_sos ? '#fef2f2' : '#fff', borderColor: t.is_sos ? '#fca5a5' : '#cbd5e1' }}>
+              <div key={t.id} style={{ padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: t.is_sos ? '#fef2f2' : '#fff', borderColor: t.is_sos ? '#fca5a5' : '#cbd5e1', marginBottom: '10px', flexShrink: 0 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <strong style={{ color: '#1e293b' }}>{t.name}</strong>
                   <span style={{ fontSize: '11px', backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', color: '#64748b' }}>{t.band_id}</span>
@@ -261,7 +268,6 @@ function PublicMapComponent() {
         <MapContainer center={mapCenter} zoom={14} style={{ height: "100%", width: "100%" }}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
-          {/* Boundaries */}
           <Circle 
             center={[mapConfig.outer_border.lat, mapConfig.outer_border.lng]} 
             radius={mapConfig.outer_border.radius * 1000} 
@@ -278,7 +284,6 @@ function PublicMapComponent() {
             </Circle>
           ))}
 
-          {/* Trekkers Mapping Loop */}
           {trekkers.map((t) => {
             const isLost = t.is_lost;
             let markerIcon = blueIcon;
@@ -286,7 +291,6 @@ function PublicMapComponent() {
             if (isLost) markerIcon = greyIcon;
             if (!t.current_pos) return null;
             
-            // 🔥 FIXED: Added safe fallback (t.history || []) to prevent the "Cannot read properties of undefined" filter crash
             const currentHistory = t.history || [];
             const historyPoints = viewMode === 'checkpoints' 
               ? currentHistory.filter((_, idx) => idx % 30 === 0) 
@@ -366,12 +370,12 @@ function App() {
   );
 }
 
-// --- ORIGINAL SIDEBAR AND INPUT STYLES ---
+// --- ORIGINAL STYLING OBJECTS UPGRADED FOR FLEX OVERFLOW ---
 const sidebarStyle = {
   width: '360px',
   backgroundColor: '#ffffff',
   boxShadow: '4px 0 24px rgba(0,0,0,0.08)',
-  padding: '24px',
+  padding: '20px 20px 0px 20px', // Removed bottom padding to prevent cutoff
   display: 'flex',
   flexDirection: 'column',
   height: '100vh',
@@ -381,10 +385,20 @@ const sidebarStyle = {
   fontFamily: 'system-ui, -apple-system, sans-serif'
 };
 
+// 🔥 Added rule to compute remaining viewport area dynamically 
+const scrollContainerStyle = {
+  flex: 1,
+  minHeight: 0, 
+  overflowY: 'auto', 
+  display: 'flex', 
+  flexDirection: 'column',
+  paddingBottom: '20px' // Provides a comfortable scroll container foot padding
+};
+
 const inputStyle = { 
   width: '100%', 
   padding: '11px 14px', 
-  marginBottom: '14px', 
+  marginBottom: '10px', 
   boxSizing: 'border-box', 
   borderRadius: '6px', 
   border: '1px solid #cbd5e1', 
@@ -410,14 +424,14 @@ const btnStyle = {
 
 const vaultBtnStyle = {
   width: '100%',
-  padding: '12px',
+  padding: '10px',
   background: 'linear-gradient(135deg, #475569 0%, #1e293b 100%)',
   color: 'white',
   border: 'none',
   borderRadius: '6px',
   cursor: 'pointer',
   fontWeight: 'bold',
-  fontSize: '14px'
+  fontSize: '13px'
 };
 
 export default App;
