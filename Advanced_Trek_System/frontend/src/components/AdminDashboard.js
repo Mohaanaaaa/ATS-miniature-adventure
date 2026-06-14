@@ -1,7 +1,7 @@
 // ============================================================================
 // AdminDashboard.js - Unified Administration Management Panel with CRUD
 // ============================================================================
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'; // 1. Added useCallback importimport './AdminDashboard.css';
 import './AdminDashboard.css';
 
 const AdminDashboard = ({ onLogout }) => {
@@ -18,6 +18,12 @@ const AdminDashboard = ({ onLogout }) => {
   const [listType, setListType] = useState(null); // ACTIVE, EMERGENCY, LOST_SIGNAL
   const [isListLoading, setIsListLoading] = useState(false);
 
+  // New states for checking trekker details per specific shop station hub
+  const [selectedShopId, setSelectedShopId] = useState(null);
+  const [selectedShopName, setSelectedShopName] = useState('');
+  const [shopTrekkersList, setShopTrekkersList] = useState([]);
+  const [isTrekkersLoading, setIsTrekkersLoading] = useState(false);
+
   // Clean Shop Registry Hook matching your precise models.py JSON requirements
   const [shopForm, setShopForm] = useState({
     shop_id: '',
@@ -31,45 +37,46 @@ const AdminDashboard = ({ onLogout }) => {
 
   const API_URL = 'http://127.0.0.1:5000/api';
 
-  // Memoized header generator to keep dependencies stable
   const getHeaders = useCallback(() => ({
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
-  }), [token]);
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${token}`
+}), [token]); // Re-evaluates only if your admin token updates
 
-  // ========== DATA SYNC PIPELINES (⚡ OPTIMIZED WITH Usecallback) ==========
-  const fetchDashboardStats = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_URL}/admin/dashboard/stats`, { headers: getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        setStats(data);
-      }
-    } catch (err) {
-      console.error("Failed to load metrics scorecard:", err);
+  // ========== DATA SYNC PIPELINES ==========
+  // 2. Add getHeaders to the fetchDashboardStats dependency array
+const fetchDashboardStats = useCallback(async () => {
+  try {
+    const res = await fetch(`${API_URL}/admin/dashboard/stats`, { headers: getHeaders() });
+    if (res.ok) {
+      const data = await res.json();
+      setStats(data);
     }
-  }, [getHeaders]);
+  } catch (err) {
+    console.error("Failed to load metrics scorecard:", err);
+  }
+}, [API_URL, getHeaders]); // Updated dependencies cleanly
 
-  const fetchAllShops = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/vault/comprehensive`, { headers: getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        const incomingShops = data.shops || [];
-        setShops(incomingShops);
-        
-        setStats(prev => ({
-          ...prev,
-          total_shops: incomingShops.length
-        }));
-      }
-    } catch (err) {
-      console.error("Shop lookup connection breakdown:", err);
-    } finally {
-      setLoading(false);
+// 3. Add getHeaders to the fetchAllShops dependency array
+const fetchAllShops = useCallback(async () => {
+  setLoading(true);
+  try {
+    const res = await fetch(`${API_URL}/vault/comprehensive`, { headers: getHeaders() });
+    if (res.ok) {
+      const data = await res.json();
+      const incomingShops = data.shops || [];
+      setShops(incomingShops);
+      
+      setStats(prev => ({
+        ...prev,
+        total_shops: incomingShops.length
+      }));
     }
-  }, [getHeaders]);
+  } catch (err) {
+    console.error("Shop lookup connection breakdown:", err);
+  } finally {
+    setLoading(false);
+  }
+}, [API_URL, getHeaders]); // Updated dependencies cleanly
 
   const fetchCategorizedTrekkers = async (status) => {
     setIsListLoading(true);
@@ -87,21 +94,46 @@ const AdminDashboard = ({ onLogout }) => {
     }
   };
 
-  // Safe Interval Sync Pipeline
+  // Fetches all registered trekkers tied to a specific base station shop
+  const fetchTrekkersByShop = async (shopId, shopName) => {
+    setIsTrekkersLoading(true);
+    setSelectedShopId(shopId);
+    setSelectedShopName(shopName);
+    try {
+      const res = await fetch(`${API_URL}/admin/shops/${shopId}/trekkers`, { headers: getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setShopTrekkersList(data || []);
+      } else {
+        setShopTrekkersList([]);
+      }
+    } catch (err) {
+      console.error("Error pulling shop trekker manifest metadata:", err);
+      setShopTrekkersList([]);
+    } finally {
+      setIsTrekkersLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchDashboardStats();
     const interval = setInterval(fetchDashboardStats, 8000);
     return () => clearInterval(interval);
-  }, [fetchDashboardStats]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); 
 
-  // Safe Tab Switching Sync Pipeline
   useEffect(() => {
-    if (activeTab === 'shops') fetchAllShops();
-  }, [activeTab, fetchAllShops]);
+    if (activeTab === 'shops') {
+      fetchAllShops();
+      setSelectedShopId(null);
+      setShopTrekkersList([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   // AUTOMATED NEW CREATION TRIGGER
   const handleOpenShopModal = async () => {
-    setIsEditing(false);
+    setIsEditing(false)
     try {
       const res = await fetch(`${API_URL}/admin/next-shop-id`, { headers: getHeaders() });
       if (res.ok) {
@@ -154,6 +186,10 @@ const AdminDashboard = ({ onLogout }) => {
 
       if (res.ok) {
         alert('Station successfully removed from database.');
+        if (selectedShopId === shopId) {
+          setSelectedShopId(null);
+          setShopTrekkersList([]);
+        }
         fetchAllShops();
         fetchDashboardStats();
       } else {
@@ -197,13 +233,13 @@ const AdminDashboard = ({ onLogout }) => {
         body: JSON.stringify(payload)
       });
 
+      const data = await res.json();
       if (res.ok) {
         alert(isEditing ? 'Station profile configurations successfully updated!' : 'Station successfully registered!');
         setShowShopForm(false);
         fetchAllShops();
         fetchDashboardStats();
       } else {
-        const data = await res.json();
         alert(`Registry Mutation Refused: ${data.error}`);
       }
     } catch (err) {
@@ -229,6 +265,7 @@ const AdminDashboard = ({ onLogout }) => {
       </header>
 
       <div className="dashboard-content">
+        
         {/* TAB 1: SYSTEM INTEGRATION MONITOR */}
         {activeTab === 'dashboard' && (
           <>
@@ -252,34 +289,34 @@ const AdminDashboard = ({ onLogout }) => {
             </div>
 
             {listType && (
-              <div className="table-container live-telemetry-block" style={{ marginTop: '25px', padding: '20px', background: '#fff', borderRadius: '8px' }}>
+              <div className="table-container live-telemetry-block">
                 <h3>Live Network Activity Log: [{listType}]</h3>
                 {isListLoading ? (
                   <p>Streaming telemetric rows from active bands...</p>
                 ) : (
-                  <table className="vault-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', marginTop: '15px' }}>
+                  <table className="vault-table">
                     <thead>
-                      <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                        <th style={{ padding: '12px' }}>Trip ID</th>
-                        <th style={{ padding: '12px' }}>Operator</th>
-                        <th style={{ padding: '12px' }}>Band ID</th>
-                        <th style={{ padding: '12px' }}>Assigned Station</th>
-                        <th style={{ padding: '12px' }}>Heart Rate</th>
-                        <th style={{ padding: '12px' }}>Device Battery</th>
+                      <tr>
+                        <th>Trip ID</th>
+                        <th>Operator</th>
+                        <th>Band ID</th>
+                        <th>Assigned Station</th>
+                        <th>Heart Rate</th>
+                        <th>Device Battery</th>
                       </tr>
                     </thead>
                     <tbody>
                       {dashboardList.length === 0 ? (
-                        <tr><td colSpan="6" style={{ padding: '15px', textAlign: 'center', color: '#6c757d' }}>No tracking records map to this monitoring condition right now.</td></tr>
+                        <tr><td colSpan="6" style={{ textAlign: 'center', color: '#6c757d' }}>No tracking records map to this monitoring condition right now.</td></tr>
                       ) : (
                         dashboardList.map(t => (
-                          <tr key={t.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                            <td style={{ padding: '12px' }}>#{t.id}</td>
-                            <td style={{ padding: '12px' }}><strong>{t.name}</strong></td>
-                            <td style={{ padding: '12px' }}><code>{t.band_id}</code></td>
-                            <td style={{ padding: '12px' }}>{t.shop_name || 'N/A'}</td>
-                            <td style={{ padding: '12px', fontWeight: 'bold', color: t.status === 'EMERGENCY' ? '#dc3545' : '#28a745' }}>💓 {t.pulse} BPM</td>
-                            <td style={{ padding: '12px' }}>{t.battery}% Remaining</td>
+                          <tr key={t.id}>
+                            <td>#{t.id}</td>
+                            <td><strong>{t.name}</strong></td>
+                            <td><code>{t.band_id}</code></td>
+                            <td>{t.shop_name || 'N/A'}</td>
+                            <td style={{ fontWeight: 'bold', color: t.status === 'EMERGENCY' ? '#dc3545' : '#28a745' }}>💓 {t.pulse} BPM</td>
+                            <td>{t.battery}% Remaining</td>
                           </tr>
                         ))
                       )}
@@ -290,7 +327,6 @@ const AdminDashboard = ({ onLogout }) => {
             )}
           </>
         )}
-
         {/* TAB 2: SHOP REGISTER WORKSPACE */}
         {activeTab === 'shops' && (
           <div className="table-container" style={{ padding: '20px', background: '#fff', borderRadius: '8px' }}>
@@ -317,17 +353,21 @@ const AdminDashboard = ({ onLogout }) => {
                   <tr><td colSpan="6" style={{ padding: '15px', textAlign: 'center', color: '#6c757d' }}>No persistent shop rows exist within your SQLite database.</td></tr>
                 ) : (
                   shops.map(shop => (
-                    <tr key={shop.shop_id} style={{ borderBottom: '1px solid #dee2e6' }}>
+                    <tr key={shop.shop_id} style={{ borderBottom: '1px solid #dee2e6', backgroundColor: selectedShopId === shop.shop_id ? '#f0f7ff' : 'transparent' }}>
                       <td style={{ padding: '12px' }}><code>{shop.shop_id}</code></td>
                       <td style={{ padding: '12px' }}><strong>{shop.shop_name}</strong></td>
                       <td style={{ padding: '12px' }}>{shop.contact_person}</td>
                       <td style={{ padding: '12px' }}>{shop.contact_phone}</td>
                       <td style={{ padding: '12px' }}>{shop.max_trekkers} Allowed</td>
-                      <td style={{ padding: '12px', display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                        <button onClick={() => handleEditClick(shop)} style={{ padding: '5px 12px', backgroundColor: '#ffc107', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
+                      <td style={{ padding: '12px', display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                        {/* 🔍 ADDED: Detailed registry viewer lookup option link */}
+                        <button onClick={() => fetchTrekkersByShop(shop.shop_id, shop.shop_name)} style={{ padding: '5px 10px', backgroundColor: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
+                          🔍 Details
+                        </button>
+                        <button onClick={() => handleEditClick(shop)} style={{ padding: '5px 10px', backgroundColor: '#ffc107', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
                           ✏️ Edit
                         </button>
-                        <button onClick={() => handleDeleteClick(shop.shop_id)} style={{ padding: '5px 12px', backgroundColor: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
+                        <button onClick={() => handleDeleteClick(shop.shop_id)} style={{ padding: '5px 10px', backgroundColor: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
                           🗑️ Delete
                         </button>
                       </td>
@@ -336,6 +376,58 @@ const AdminDashboard = ({ onLogout }) => {
                 )}
               </tbody>
             </table>
+
+            {/* DYNAMIC SUB-TABLE PANEL: Displays trekkers registered at the selected base station */}
+            {selectedShopId && (
+              <div className="shop-trekkers-details-block" style={{ marginTop: '30px', padding: '20px', border: '1px solid #bee5eb', backgroundColor: '#f8fdfd', borderRadius: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                  <h4 style={{ margin: 0, color: '#0c5460' }}>📋 Registered Trekker Manifest: <span style={{ textDecoration: 'underline' }}>{selectedShopName}</span> ({selectedShopId})</h4>
+                  <button onClick={() => { setSelectedShopId(null); setShopTrekkersList([]); }} style={{ padding: '4px 10px', backgroundColor: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+                    ✕ Close Details
+                  </button>
+                </div>
+
+                {isTrekkersLoading ? (
+                  <p style={{ color: '#6c757d', fontSize: '13px' }}>Querying active trail roster rows...</p>
+                ) : shopTrekkersList.length === 0 ? (
+                  <p style={{ color: '#6c757d', fontSize: '13px', margin: 0, padding: '10px 0' }}>No trekkers have registered at this base station checkpoint yet.</p>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px', backgroundColor: '#ffffff' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#eef9fa', borderBottom: '1px solid #bee5eb' }}>
+                        <th style={{ padding: '10px' }}>Trekker ID</th>
+                        <th style={{ padding: '10px' }}>Trekker Name</th>
+                        <th style={{ padding: '10px' }}>Hardware Band ID</th>
+                        <th style={{ padding: '10px' }}>Emergency Phone Contact</th>
+                        <th style={{ padding: '10px' }}>Trail Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shopTrekkersList.map(trekker => (
+                        <tr key={trekker.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                          <td style={{ padding: '10px' }}>#{trekker.id}</td>
+                          <td style={{ padding: '10px' }}><strong>{trekker.name}</strong></td>
+                          <td style={{ padding: '10px' }}><code>{trekker.reg_id || trekker.band_id || 'N/A'}</code></td>
+                          <td style={{ padding: '10px' }}>{trekker.emergency_contact || 'None'}</td>
+                          <td style={{ padding: '10px' }}>
+                            <span style={{
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              backgroundColor: trekker.is_active ? '#d4edda' : '#e2e8f0',
+                              color: trekker.is_active ? '#155724' : '#495057'
+                            }}>
+                              {trekker.is_active ? 'ON TRAIL' : 'COMPLETED'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
           </div>
         )}
 

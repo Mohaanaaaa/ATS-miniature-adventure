@@ -1,48 +1,29 @@
 /* ============================================================================
-   AdminDashboard.css - Premium Master Vault Theme
+   AdminDashboard.css - Master Dashboard Layout Restoration Sheet
    ============================================================================ */
 
-:root {
-  --bg-main: #f4f6f9;
-  --bg-card: #ffffff;
-  --text-dark: #2c3e50;
-  --text-muted: #7f8c8d;
-  --primary: #3498db;
-  --success: #2ecc71;
-  --danger: #e74c3c;
-  --warning: #f1c40f;
-  --border-color: #eaeaea;
-}
-
-body {
-  margin: 0;
-  font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  background-color: var(--bg-main);
-  color: var(--text-dark);
-}
-
 .admin-dashboard {
-  display: flex;
-  flex-direction: column;
+  background-color: #f8fafc;
   min-height: 100vh;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: #1e293b;
 }
 
-/* --- Header & Navigation --- */
+/* --- HEADER NAVIGATION --- */
 .dashboard-header {
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
   color: #ffffff;
   padding: 15px 30px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
 .dashboard-header h2 {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 20px;
   letter-spacing: 0.5px;
-  font-weight: 600;
 }
 
 .nav-tabs {
@@ -52,50 +33,43 @@ body {
 }
 
 .nav-tabs button {
-  background: rgba(255, 255, 255, 0.05);
+  padding: 8px 16px;
+  background-color: rgba(255, 255, 255, 0.1);
   color: #cbd5e1;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 10px 18px;
+  border: 1px solid transparent;
   border-radius: 6px;
   cursor: pointer;
-  font-weight: 500;
+  font-weight: 600;
   transition: all 0.2s ease;
 }
 
 .nav-tabs button:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 
 .nav-tabs button.active {
-  background: var(--primary);
+  background-color: #3b82f6;
   color: #ffffff;
-  border-color: var(--primary);
-  box-shadow: 0 0 10px rgba(52, 152, 219, 0.3);
 }
 
 .nav-tabs .logout-btn {
-  background: transparent;
-  color: #f87171;
-  border: 1px solid rgba(248, 113, 113, 0.3);
+  background-color: #ef4444;
+  color: white;
 }
 
 .nav-tabs .logout-btn:hover {
-  background: #ef4444;
-  color: white;
-  border-color: #ef4444;
+  background-color: #dc2626;
 }
 
-/* --- Content Wrapper --- */
+/* --- CONTENT CONTAINERS --- */
 .dashboard-content {
   padding: 30px;
   max-width: 1400px;
-  width: 100%;
   margin: 0 auto;
-  box-sizing: border-box;
 }
 
-/* --- Metrics Scorecard Grid --- */
+/* --- STATS SCORECARD GRID --- */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -104,146 +78,99 @@ body {
 }
 
 .stat-card {
-  background: var(--bg-card);
+  background-color: #ffffff;
   padding: 24px;
   border-radius: 12px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-  border-left: 5px solid #bdc3c7;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border-left: 6px solid #cbd5e1;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  position: relative;
-  overflow: hidden;
 }
 
 .stat-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-2px);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 }
 
+.stat-card.selected-card {
+  ring: 3px solid #3b82f6;
+  transform: scale(1.02);
+}
+
+/* Dynamic Variant Indicators */
+.stat-card.blue { border-left-color: #3b82f6; }
+.stat-card.green { border-left-color: #10b981; }
+.stat-card.red { border-left-color: #ef4444; }
+.stat-card.grey { border-left-color: #64748b; }
+
 .stat-card h3 {
   margin: 0 0 10px 0;
-  font-size: 0.9rem;
+  font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--text-muted);
+  color: #64748b;
 }
 
-.stat-card .stat-value {
+.stat-value {
   margin: 0;
-  font-size: 2.2rem;
+  font-size: 36px;
   font-weight: 700;
-  color: var(--text-dark);
+  color: #0f172a;
 }
 
-/* Card Specific Status Variances */
-.stat-card.blue { border-left-color: var(--primary); }
-.stat-card.green { border-left-color: var(--success); }
-.stat-card.red { border-left-color: var(--danger); }
-.stat-card.grey { border-left-color: #7f8c8d; }
-
-.stat-card.selected-card {
-  background: #f0f7ff;
-  border: 2px solid var(--primary);
-  border-left: 5px solid var(--primary);
-}
-
-/* --- Tables & Data Containers --- */
+/* --- CORE MASTER TABLES --- */
 .table-container {
-  background: var(--bg-card);
+  background-color: #ffffff;
+  padding: 24px;
   border-radius: 12px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-  border: 1px solid var(--border-color);
-  overflow: hidden;
+  margin-top: 20px;
 }
 
 .table-container h3 {
-  padding: 20px 24px 0 24px;
-  margin: 0;
-  font-size: 1.15rem;
-  color: var(--text-dark);
+  margin: 0 0 20px 0;
+  color: #0f172a;
+  font-size: 18px;
 }
 
 .vault-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 15px;
-}
-
-.vault-table th {
-  background-color: #f8fafc;
-  color: #64748b;
-  font-weight: 600;
-  text-transform: uppercase;
-  font-size: 0.75rem;
-  letter-spacing: 0.5px;
-  border-bottom: 2px solid var(--border-color);
-}
-
-.vault-table td, .vault-table th {
-  padding: 14px 24px;
   text-align: left;
 }
 
-.vault-table tr {
-  border-bottom: 1px solid var(--border-color);
-  transition: background-color 0.15s ease;
+.vault-table th {
+  background-color: #f1f5f9;
+  color: #475569;
+  padding: 14px;
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.vault-table td {
+  padding: 14px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 14px;
 }
 
 .vault-table tr:hover {
   background-color: #f8fafc;
 }
 
-.vault-table code {
-  background: #f1f5f9;
-  padding: 4px 8px;
+/* --- CONTROL INTERFACE ACTIONS --- */
+.vault-table td display-actions {
+  display: flex;
+  gap: 8px;
+}
+
+code {
+  background-color: #f1f5f9;
+  padding: 3px 6px;
   border-radius: 4px;
   font-family: monospace;
   color: #0f172a;
-}
-
-/* --- Form Modals --- */
-.modal-overlay {
-  background-color: rgba(15, 23, 42, 0.6) !important;
-  backdrop-filter: blur(4px);
-  transition: all 0.3s ease;
-}
-
-.modal-content {
-  border-radius: 16px !important;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
-  border: 1px solid var(--border-color);
-  animation: modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.modal-content h3 {
-  font-size: 1.3rem;
-  font-weight: 600;
-  color: #1e293b;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 15px;
-}
-
-.modal-content label {
-  color: #475569;
-  font-size: 0.85rem;
-  margin-bottom: 6px !important;
-}
-
-.modal-content input {
-  border: 1px solid #cbd5e1 !important;
-  border-radius: 6px !important;
-  padding: 10px 12px !important;
-  font-size: 0.95rem;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.modal-content input:focus {
-  outline: none;
-  border-color: var(--primary) !important;
-  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
-}
-
-@keyframes modalSlideUp {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  font-weight: bold;
 }

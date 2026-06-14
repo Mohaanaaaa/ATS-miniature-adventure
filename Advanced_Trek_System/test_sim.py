@@ -74,7 +74,7 @@ def run_simulation():
             print(f"   {status} Trekker: {t['name']} | Pulse: {heart_rate} BPM | Msg: {msg}")
 
         print(f"   ⏳ Sync complete. Waiting 5s before next ping loop...")
-        time.sleep(5)
+        time.sleep(10)
 
     print("\n" + "="*60)
     print("🏁 SIMULATION ROUTE COMPLETE - DATA PIPELINE IDLE")

@@ -9,9 +9,23 @@ import secrets
 import json
 from sqlalchemy.exc import IntegrityError
 import time 
+from flask import Flask
+from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)
+
+# 🛡️ GLOBAL CROSS-ORIGIN SECURITY PERMISSION MATRIX:
+# This ensures that custom 'Authorization' tokens are explicitly accepted on all admin vectors.
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["http://localhost:3000", "http://127.0.0.1:3000"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})
+
+#app = Flask(__name__)
+#CORS(app)
 
 # ============================================================================
 # ⚙️ SYSTEM & DATABASE CONFIGURATIONS
@@ -553,6 +567,38 @@ def delete_shop_profile(shop_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Cascading constraint block or database failure: {str(e)}"}), 500
+    
+@app.route('/api/admin/shops/<string:shop_id>/trekkers', methods=['GET', 'OPTIONS'])
+def get_trekkers_by_shop(shop_id):
+    """
+    Queries and builds a manifest profile list of all trekkers who registered 
+    through a specific base camp station hub, mapping live or historical trips.
+    """
+    # Explicitly handle preflight check options cleanly if hit independently
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight verification cleared"}), 200
+
+    try:
+        # Join Trekker and Trip tables matching your exact structural schemas
+        results = db.session.query(Trekker, Trip).\
+            join(Trip, Trekker.id == Trip.trekker_id).\
+            filter(Trip.shop_id == shop_id).\
+            order_by(Trip.start_time.desc()).all()
+
+        trekker_manifest = []
+        for trekker, trip in results:
+            trekker_manifest.append({
+                "id": trekker.id,
+                "name": trekker.name,
+                "reg_id": trekker.reg_id,          # Explicitly forwards the 13-digit hardware token string
+                "emergency_contact": trekker.emergency_contact,
+                "is_active": trip.is_active        # Dictates 'ON TRAIL' vs 'COMPLETED' badge rendering
+            })
+
+        return jsonify(trekker_manifest), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to retrieve station roster manifest rows: {str(e)}"}), 500
 
 # ============================================================================
 # ⚠️ ORIGINAL LEGACY BACKEND WRAPPERS (Preserved exactly for legacy safety)
