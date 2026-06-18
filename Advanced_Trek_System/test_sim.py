@@ -7,10 +7,10 @@ BASE_URL = "http://127.0.0.1:5000/api"
 
 # Synced up perfectly with your React registration screenshot entry!
 TREKKERS = [
-    {"name": "A", "band_id": "2026000100001", "contact": "9743141231"}
+    {"name": "A", "band_id": "2026000100001", "contact": "98765434"}
 ]
 
-START_LAT, START_LNG = 12.6654, 75.6601
+START_LAT, START_LNG = 12.6657, 75.6610
 END_LAT, END_LNG = 12.6675, 75.7125
 
 def generate_path(steps=25):

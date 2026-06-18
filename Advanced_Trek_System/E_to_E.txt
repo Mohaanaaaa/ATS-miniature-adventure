@@ -1,0 +1,59 @@
+Here is a structural breakdown of exactly how data flows through your system in real time.
+
+The entire process operates as a 4-stage pipeline, starting from a trekker on the mountain trail all the way to your web interface.
+
+🔄 The End-to-End System Workflow
+[ Trekker's Band ] 
+       │ 
+       │ (Radio Waves / LoRa Protocol)
+       ▼
+[ Physical LoRa USB Gateway ] 
+       │ 
+       │ (Serial Port Data Stream / COM Port)
+       ▼
+[ gateway_listener.py ] 
+       │ 
+       │ (HTTP POST JSON Payload to /api/ingest)
+       ▼
+[ backend/app.py (Flask) ] ───► [ SQLite Database ]
+       │ 
+       │ (Serves JSON API Endpoints via CORS)
+       ▼
+[ React Frontend Dashboard (App.js) ] ───► (Displays Live Map & SOS Alerts)
+
+📡 Detailed Step-by-Step Breakdown
+1. The Hardware Broadcast (Field Layer)
+What happens: The tracking band worn by the trekker collects GPS coordinates (lat, lng), heart rate (hr), and the emergency button status (sos).
+
+Transmission: It bundles this data into a lightweight raw text string formatted as a colon-separated sequence: ST:band_id:lat:lng:hr:sos (for example: ST:1234567890123:12.6654:75.6601:82:0). It broadcasts this packet into the air over low-frequency radio waves.
+
+2. The Capture & Bridge (Ingestion Layer)
+What happens: Your physical LoRa Gateway receiver stays plugged into your laptop's USB port. It intercepts the radio signals out of the air.
+
+The Listener: The gateway_listener.py script continuously watches the connection (e.g., COM3 on Windows). The moment a raw line appears, it intercepts it, extracts the individual elements, and structures them into a clean JavaScript Object Notation (JSON) format:
+
+JSON
+{
+    "band_id": "1234567890123",
+    "lat": 12.6654,
+    "lng": 75.6601,
+    "hr": 82,
+    "sos": false
+}
+The Handshake: The script instantly pushes this structured payload to your local Flask server using an HTTP POST request to the /api/ingest route.
+
+3. Boundary Evaluation & Storage (Core Logic Layer)
+What happens: Your Flask backend (app.py) receives the payload.
+
+The Intelligence Loop: 1. It fetches the active trip matching that band_id.
+2. It dynamically calculates the distance between the trekker's incoming position and the virtual safety geofence (MASTER_BORDER and KUMARA_TRAIL arrays) using the mathematical Haversine formula.
+3. If the trekker strays outside the designated radius or manually triggers their physical button, the backend instantly updates the state flag to is_sos = True.
+
+Persistence: The calculated metrics are written permanently to your trek_system.db database inside the telemetry tracking log table.
+
+4. The Operator Interface (Visualization Layer)
+What happens: Your React frontend dashboard dashboard page makes background polling requests to the backend administration routes.
+
+Rendering: It fetches coordinates from /api/active_trekkers or individual shop points. The UI drops map markers using Leaflet, draws movement paths via polyline arrays, and instantly triggers visual red warning flags if any device transmits an alert status.
+
+This architecture ensures that your heavy data processing and hardware interactions are isolated from the web UI, keeping your live dashboard smooth, responsive, and easy to run locally!
