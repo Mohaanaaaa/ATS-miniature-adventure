@@ -4,7 +4,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from models import Shop, db, Trekker, Trip, Telemetry
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timezone,timedelta
 from functools import wraps
 import os
 import jwt
@@ -14,45 +14,61 @@ import re
 import json
 import logging
 from logging.handlers import RotatingFileHandler
+from werkzeug.security import generate_password_hash, check_password_hash
+from models import db # or directly use your SQLAlchemy object instantiation
+from sqlalchemy import desc
 
 # ============================================================================
 # ⚙️ CONFIGURATIONS & ENVIRONMENT LOAD MANAGEMENT
 # ============================================================================
 load_dotenv()
 SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'SuperSecretRandomSecureString_ChangeMe2026!')
-ENV = os.getenv('FLASK_ENV', 'development')
+#ENV = os.getenv('FLASK_ENV', 'development')
+ENV = os.getenv('FLASK_ENV', 'production') # 🔥 Force production validation rules
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///trek_system.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-if ENV == 'production':
-    ALLOWED_ORIGINS = [
-        "https://yoursecuredomain.com",        
-        "https://admin.yoursecuredomain.com"  
-    ]
-else:
-    ALLOWED_ORIGINS = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:5000",
-        "http://127.0.0.1:5000"
-    ]
+PRODUCTION_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://yoursecuredomain.com"
+]
 
-# 🔓 CORS CONFIGURATION MATRIX
+def origin_validator(origin):
+    """Intercepts and drops cross-site scripting vectors from arbitrary origins"""
+    if ENV == 'development':
+        return "*"
+    return origin if origin in PRODUCTION_ORIGINS else None
+
+# Apply strict structural boundaries
 CORS(app, resources={
     r"/api/*": {
-        "origins": "*",
+        "origins": PRODUCTION_ORIGINS if ENV == 'production' else "*",
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"]
     }
 })
 
-db.init_app(app)
 
-ADMIN_CREDENTIALS = {
-    "admin": "kp-vault-2026"  
-}
+# 🔓 CORS CONFIGURATION MATRIX
+'''CORS(app, resources={
+    r"/api/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})'''
+
+db.init_app(app)
+with app.app_context():
+    try:
+        db.create_all()
+    except Exception as e:
+        print(f"Database initialization deferred: {e}")
+
+
 
 # ============================================================================
 # 📝 SECURE SYSTEM LOGGING OPERATIONS MATRIX
@@ -235,36 +251,136 @@ def ingest_data():
         db.session.rollback()
         return jsonify({"error": str(e)}), 500    
 
-@app.route('/api/active_trekkers', methods=['GET'])
-def get_active_trekkers():
+# ============================================================================
+# 🛰️ API ROUTING LAYER - GENERAL TRACKING ENDPOINTS
+# ============================================================================
+@app.route('/api/register_trekker', methods=['POST', 'OPTIONS'])
+def register_trekker():
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight cleared"}), 200
+        
+    data = request.json or {}
+    
+    # 🛡️ SANITIZATION MATRIX: Strip out harmful markup text vectors completely
+    raw_name = data.get('name', '').strip()
+    cleaned_name = bleach.clean(raw_name, tags=[], strip=True) if raw_name else ""
+    
+    raw_contact = data.get('emergency_contact', '').strip()
+    cleaned_contact = bleach.clean(raw_contact, tags=[], strip=True) if raw_contact else ""
+    name = data.get('name')
+    band_id = data.get('band_id')
+    emergency_contact = data.get('emergency_contact')
+    
+     
+    # 🌟 FIX fallback check to catch either key name to stay completely safe
+    shop_id = data.get('shop_id') or data.get('shop_name')
+    
+    # 🛑 Validation Guardrails
+    if not cleaned_name:
+        return jsonify({"error": "Trekker profile name is a required field"}), 400
+    if not len(band_id) == 13 or not band_id.isdigit():
+        return jsonify({"error": "Hardware band identity code must be a strict 13-digit sequence"}), 400
+
+    if not name or not band_id or not shop_id:
+        return jsonify({"error": "Missing mandatory parameters (name, band_id, shop_id)"}), 400
+
+    try:
+        trekker = Trekker(name=name, emergency_contact=emergency_contact)
+        trekker = Trekker.query.filter_by(reg_id=band_id).first()
+        if not trekker:
+            trekker = Trekker(name=cleaned_name, reg_id=band_id, emergency_contact=cleaned_contact)
+            db.session.add(trekker)
+            db.session.flush()
+
+        new_trip = Trip(
+            trekker_id=trekker.id,
+            band_id=band_id,
+            shop_id=shop_id,
+            is_active=True
+        )
+        db.session.add(new_trip)
+        db.session.commit()
+        return jsonify({"success": True, "message": "Trekker and active trip registered successfully"}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+'''@app.route('/api/active_trekkers', methods=['GET', 'OPTIONS'])
+def get_global_active_trekkers():
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight"}), 200
     try:
         active_trips = Trip.query.filter_by(is_active=True).all()
         results = []
         now = datetime.now(timezone.utc)
         for trip in active_trips:
             trekker = db.session.get(Trekker, trip.trekker_id)
-            detailed_history = []
-            for loc in trip.locations:
-                detailed_history.append({"pos": [loc.lat, loc.lng], "time": loc.timestamp.strftime("%I:%M %p"), "hr": loc.heart_rate, "is_sos": loc.is_sos})
-            
-            last_ping = trip.locations[-1] if trip.locations else None
-            is_lost = False
-            last_seen_mins = 0
+            if not trekker:
+                continue
+            # ⚡ OPTIMIZATION: Query ONLY the single newest telemetry entry directly from the database
+            last_ping = Telemetry.query.filter_by(trip_id=trip.id)\
+                               .order_by(desc(Telemetry.timestamp))\
+                               .first()
+            #last_ping = trip.locations[-1] if trip.locations else None
+            current_status = "ACTIVE"
             if last_ping:
                 ping_time = last_ping.timestamp.replace(tzinfo=timezone.utc) if last_ping.timestamp.tzinfo is None else last_ping.timestamp
                 diff = now - ping_time
-                last_seen_mins = int(diff.total_seconds() / 60)
-                is_lost = last_seen_mins > 10 
-
-            hr = last_ping.heart_rate if last_ping else 0
-            batt = getattr(last_ping, 'battery_level', 100) if last_ping else 100
-            safety_status = "EMERGENCY" if (last_ping and last_ping.is_sos) else "ACTIVE"
-
+                if last_ping.is_sos:
+                    current_status = "EMERGENCY"
+                elif (diff.total_seconds() / 60 > 10):
+                    current_status = "LOST_SIGNAL"
+                    
             results.append({
-                "id": trip.id, "name": trekker.name if trekker else f"Hardware Node #{trip.band_id}", "band_id": trip.band_id,
-                "history": detailed_history, "current_pos": detailed_history[-1]["pos"] if detailed_history else None,
-                "hr": hr, "batt": batt, "is_sos": last_ping.is_sos if last_ping else False, "is_lost": is_lost,
-                "last_seen_mins": last_seen_mins, "safety_status": safety_status
+                "id": trip.id,
+                "name": trekker.name,
+                "band_id": trip.band_id,
+                "shop_id": trip.shop_id,       # 🌟 Added explicit identification key
+                "shop_name": trip.shop_id,     # Fallback uniformity layer
+                "emergency_contact": trekker.emergency_contact,
+                "status": current_status
+            })
+        return jsonify(results), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500'''
+        
+@app.route('/api/active_trekkers', methods=['GET', 'OPTIONS'])
+def get_global_active_trekkers():
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "preflight"}), 200
+    try:
+        active_trips = Trip.query.filter_by(is_active=True).all()
+        results = []
+        now = datetime.now(timezone.utc)
+        
+        for trip in active_trips:
+            # Look up trekker using the existing db instance bound to app.py
+            trekker = db.session.get(Trekker, trip.trekker_id)
+            if not trekker:
+                continue
+                
+            # ⚡ OPTIMIZATION FIXED: Query strictly the newest single row from the database
+            last_ping = Telemetry.query.filter_by(trip_id=trip.id)\
+                                       .order_by(desc(Telemetry.timestamp))\
+                                       .first()
+            
+            current_status = "ACTIVE"
+            if last_ping:
+                ping_time = last_ping.timestamp.replace(tzinfo=timezone.utc) if last_ping.timestamp.tzinfo is None else last_ping.timestamp
+                diff = now - ping_time
+                if last_ping.is_sos:
+                    current_status = "EMERGENCY"
+                elif (diff.total_seconds() / 60 > 10):
+                    current_status = "LOST_SIGNAL"
+                    
+            results.append({
+                "id": trip.id,
+                "name": trekker.name,
+                "band_id": trip.band_id,
+                "shop_id": trip.shop_id,
+                #"shop_name": trip.shop_id,
+                "emergency_contact": trekker.emergency_contact,
+                "status": current_status
             })
         return jsonify(results), 200
     except Exception as e:
@@ -287,25 +403,27 @@ def end_trek():
 def admin_login():
     if request.method == 'OPTIONS':
         return jsonify({"status": "preflight cleared"}), 200
+        
     data = request.json or {}
     username = data.get('username')
     password = data.get('password')
     
-    if username in ADMIN_CREDENTIALS and ADMIN_CREDENTIALS[username] == password:
-        import datetime as dt
-        payload = {
-            'exp': dt.datetime.utcnow() + dt.timedelta(hours=2),
-            'iat': dt.datetime.utcnow(),
-            'sub': username
-        }
-        encoded_jwt = jwt.encode(payload, SECRET_KEY, algorithm='HS256')
-        return jsonify({
-            "success": True,
-            "token": encoded_jwt,
-            "message": "Master Admin Access Granted",
-            "access_level": "MASTER"
-        }), 200
-    return jsonify({"error": "Invalid credentials"}), 401
+    # 🔐 Extract the master signature from secure host environment variables
+    env_admin_password = os.getenv('ADMIN_PASSWORD', 'kp-vault-2026')
+    
+    # Generate a secure verification hash match vector dynamically
+    secure_hash_target = generate_password_hash(env_admin_password)
+
+    # Check if user matches 'admin' and passes the cryptographic hash test
+    if username == 'admin' and check_password_hash(secure_hash_target, password):
+        token = jwt.encode({
+            "user": username,   
+            "role": "admin",
+            "exp": datetime.utcnow() + timedelta(hours=1)  # Token expires in 1 hour
+        },SECRET_KEY, algorithm="HS256")
+        return jsonify({"success": True,"message": "Master Admin login successful" ,"token": token}), 200
+        
+    return jsonify({"error": "Invalid admin portal administrative credentials"}), 401
 
 @app.route('/api/admin/stats', methods=['GET', 'OPTIONS'])
 @admin_required
@@ -368,14 +486,19 @@ def handle_shops_management():
             return jsonify({"error": f"Station ID '{shop_id}' already initialized."}), 400
 
         try:
+            total_shops = Shop.query.count()
+            next_id = f"shop_{str(total_shops + 1).zfill(2)}"
             new_shop = Shop(
-                shop_id=shop_id, shop_name=data.get('shop_name', 'New Operational Hub'),
-                shop_location={"lat": 12.6654, "lng": 75.6601}, contact_person=data.get('contact_person', 'Ranger Head'),
-                contact_phone=data.get('contact_phone', 'N/A'), max_trekkers=int(data.get('max_trekkers', 50))
+                shop_id=next_id,
+                shop_name=data.get('shop_name'),
+                shop_location={"lat": 13.0, "lng": 77.0},
+                contact_person=data.get('contact_person'),
+                contact_phone=data.get('contact_phone'),
+                max_trekkers=int(data.get('max_trekkers', 50))
             )
             db.session.add(new_shop)
             db.session.commit()
-            return jsonify({"success": True, "message": f"Hub {shop_id} saved."}), 201
+            return jsonify({"success": True, "message": f"Hub {shop_id} saved.", "shop": new_shop.to_dict()}), 201
         except Exception as e:
             db.session.rollback()
             return jsonify({"error": str(e)}), 500
@@ -399,16 +522,27 @@ def get_trekkers_by_specific_shop(shop_id):
         for trip in active_trips:
             trekker = db.session.get(Trekker, trip.trekker_id)
             if not trekker: continue
-            last_ping = trip.locations[-1] if trip.locations else None
+            # ⚡ OPTIMIZATION: Query ONLY the single newest telemetry entry directly from the database
+            last_ping = Telemetry.query.filter_by(trip_id=trip.id)\
+                               .order_by(desc(Telemetry.timestamp))\
+                               .first()
+            #last_ping = trip.locations[-1] if trip.locations else None
             current_status = "ACTIVE"
             if last_ping:
                 ping_time = last_ping.timestamp.replace(tzinfo=timezone.utc) if last_ping.timestamp.tzinfo is None else last_ping.timestamp
                 diff = now - ping_time
-                if last_ping.is_sos: current_status = "EMERGENCY"
-                elif (diff.total_seconds() / 60 > 10): current_status = "LOST_SIGNAL"
+                if last_ping.is_sos:
+                    current_status = "EMERGENCY"
+                elif (diff.total_seconds() / 60 > 10):
+                    current_status = "LOST_SIGNAL"
             results.append({
-                "id": trip.id, "name": trekker.name, "band_id": trip.band_id,
-                "shop_name": trip.shop_id, "emergency_contact": trekker.emergency_contact, "status": current_status
+                "id": trip.id, 
+                "name": trekker.name,
+                "band_id": trip.band_id,
+                "shop_id": trip.shop_id,
+                "shop_name": trip.shop_id, 
+                "emergency_contact": trekker.emergency_contact, 
+                "status": current_status
             })
         return jsonify(results), 200
     except Exception as e:
@@ -422,7 +556,7 @@ def handle_single_shop_modification(shop_id):
         
     shop = Shop.query.filter_by(shop_id=shop_id).first()
     if not shop:
-        return jsonify({"error": "Station row not found"}), 404
+        return jsonify({"error": "Requested station row not found"}), 404
         
     if request.method == 'DELETE':
         try:
@@ -441,7 +575,7 @@ def handle_single_shop_modification(shop_id):
             shop.contact_phone = data.get('contact_phone', shop.contact_phone)
             shop.max_trekkers = int(data.get('max_trekkers', shop.max_trekkers))
             db.session.commit()
-            return jsonify({"success": True, "message": "Hub entry adjusted successfully."}), 200
+            return jsonify({"success": True, "message": "Hub entry updated successfully."}), 200
         except Exception as e:
             db.session.rollback()
             return jsonify({"error": str(e)}), 500

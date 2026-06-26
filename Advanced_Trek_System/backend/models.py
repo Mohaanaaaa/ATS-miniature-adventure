@@ -17,7 +17,7 @@ class Trekker(db.Model):
 
     # Safe relationship mapping - Invisible to frontend, accelerates backend
     trips = db.relationship('Trip', backref='trekker', lazy=True, cascade="all, delete-orphan")
-
+    #shop_id = db.Column(db.String(50), db.ForeignKey('shop.shop_id'))
 
 class Trip(db.Model):
     __tablename__ = 'trip'

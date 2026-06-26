@@ -51,6 +51,8 @@ const MainTracker = () => {
     emergency_contact: '',
     shop_id: '' // Kept clean to dynamic auto-select first row
   });
+  // Popup state for checkpoint details (if needed in future expansion)
+  const [showPopup, setShowPopup] = useState(false);
 
   const API_BASE = 'http://127.0.0.1:5000/api';
 
@@ -147,7 +149,8 @@ const MainTracker = () => {
         ...prev,
         name: '',
         reg_id: '',
-        emergency_contact: ''
+        emergency_contact: '',
+        shop_id: selectedShop => prev.shop_id // Retains current shop selection for next registration
         // keeps previous shop selection intact
       }));
     } catch (err) {
@@ -324,9 +327,21 @@ const MainTracker = () => {
                 />
                 <Marker position={[zone.lat, zone.lng]} icon={greyIcon}>
                   <Tooltip permanent direction="top" offset={[0, -10]}>
-                    <strong>Checkpoint: {zone.name}</strong>
-                  </Tooltip>
+                    <strong style={{ cursor: 'pointer' }} title={`title: ${zone.name}`}>
+                      Checkpoint: {zone.name}
+                    </strong>
+                    {showPopup && (
+                      <div className="popup">
+                        <div className="popup-content">
+                          <h3>Checkpoint Details</h3>
+                          <p>Name: {zone.name}</p>
+                          <button onClick={() => setShowPopup(false)}>Close</button>
+                        </div>
+                      </div>
+                    )}
+                  </Tooltip>  
                 </Marker>
+                
               </LayerGroup>
             ))}
 

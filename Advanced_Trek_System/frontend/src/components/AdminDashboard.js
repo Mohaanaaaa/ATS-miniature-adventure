@@ -72,24 +72,33 @@ const AdminDashboard = ({ onLogout }) => {
 
   // Handle viewing specific shop trekker records
   const viewShopTrekkers = async (shopId, shopName) => {
-    setSelectedShopId(shopId);
-    setSelectedShopName(shopName);
-    setIsTrekkersLoading(true);
-    setShopTrekkersList([]);
-    try {
-      const res = await fetch(`http://127.0.0.1:5000/api/admin/shops/${shopId}/trekkers`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setShopTrekkersList(data);
+  setSelectedShopId(shopId);
+  setSelectedShopName(shopName);
+  setIsTrekkersLoading(true);
+  try {
+    const response = await fetch(`http://127.0.0.1:5000/api/admin/shops/${shopId}/trekkers`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        // 🌟 ADDED: Send the admin authentication token to bypass the backend blocker
+        'Authorization': `Bearer ${token}` 
       }
-    } catch (err) {
-      console.error("Failed to read shop tracker sub-array mapping:", err);
-    } finally {
-      setIsTrekkersLoading(false);
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      setShopTrekkersList(data);
+    } else {
+      console.error("Backend validation failed or unauthorized access.");
+      setShopTrekkersList([]);
     }
-  };
+  } catch (error) {
+    console.error("Network synchronization error fetching station trekkers:", error);
+    setShopTrekkersList([]);
+  } finally {
+    setIsTrekkersLoading(false);
+  }
+};
 
   const fetchDashboardList = async (type) => {
     setListType(type);
@@ -344,6 +353,7 @@ const AdminDashboard = ({ onLogout }) => {
               <thead>
                 <tr style={{ background: '#f8fafc' }}>
                   <th>Trip Profile ID</th>
+                  <th style={{ fontWeight: '600' }}>Shop ID</th>
                   <th>Trekker Signature Name</th>
                   <th>Hardware Node Band ID</th>
                   <th>Emergency Network Contact</th>
@@ -354,6 +364,10 @@ const AdminDashboard = ({ onLogout }) => {
                 {shopTrekkersList.map((trekker) => (
                   <tr key={trekker.id}>
                     <td>#{trekker.id}</td>
+                    {/* 🌟 FIXED: Changed {shopId.shop_id} to use either the item's field or the selected state */}
+                    <td style={{ fontFamily: 'monospace', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
+                      {trekker.shop_id || selectedShopId}
+                    </td>
                     <td style={{ fontWeight: '600' }}>{trekker.name}</td>
                     <td><span style={{ fontFamily: 'monospace', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>{trekker.band_id}</span></td>
                     <td>{trekker.emergency_contact}</td>
@@ -370,7 +384,7 @@ const AdminDashboard = ({ onLogout }) => {
                       </span>
                     </td>
                   </tr>
-                ))}
+                                  ))}
               </tbody>
             </table>
           </div>
